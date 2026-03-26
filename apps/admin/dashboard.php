@@ -1767,10 +1767,173 @@ document.addEventListener('DOMContentLoaded',()=>{
   startSync(10000);
   restoreMonitorIfRunning();
   
+  // Check for synced location data from devices page
+  checkForLocationSync();
+  
   // Auto-restart simulation when interval or mode changes
   document.getElementById('simInterval').addEventListener('change',()=>{ if(_st) startSim(); });
   document.getElementById('simMode').addEventListener('change',()=>{ if(_st) startSim(); });
 });
+
+// Check for location sync from devices page
+function checkForLocationSync() {
+  const syncedLocations = sessionStorage.getItem('devicesPageLocations');
+  if (syncedLocations) {
+    try {
+      const locations = JSON.parse(syncedLocations);
+      console.log(' Detected location sync from devices page:', locations);
+      
+      // Update map markers with new location data
+      updateMapMarkersFromSync(locations);
+      
+      // Clear the sync data after processing
+      sessionStorage.removeItem('devicesPageLocations');
+      
+      // Show sync notification
+      showSyncNotification('Map locations updated from Device Management');
+    } catch (e) {
+      console.error('Error processing location sync:', e);
+    }
+  }
+}
+
+// Update map markers from synced data
+function updateMapMarkersFromSync(locations) {
+  if (!locations || locations.length === 0) return;
+  
+  // Update existing markers or add new ones
+  locations.forEach(loc => {
+    const marker = _mapMk[loc.id];
+    if (marker) {
+      // Update existing marker
+      const isActive = loc.device_count > 0;
+      const color = getRiverSectionColor(loc.river_section);
+      
+      marker.setStyle({
+        fillColor: isActive ? color : '#9ca3af',
+        color: '#fff',
+        weight: 2.5,
+        fillOpacity: 0.95
+      });
+      
+      // Update popup content
+      const popupContent = generatePopupContent(loc);
+      marker.setPopupContent(popupContent);
+      
+      // Update tooltip
+      const sectionLabel = getRiverSectionLabel(loc.river_section);
+      marker.unbindTooltip();
+      L.tooltip({permanent:true,direction:'bottom',offset:[0,12]})
+        .setContent(`<span style="font-size:9px;font-weight:600;color:#3d4a5c;font-family:'Instrument Sans',sans-serif;letter-spacing:.04em;text-transform:uppercase">${sectionLabel}</span>`)
+        .setLatLng([loc.lat, loc.lng])
+        .addTo(window.avMap);
+    }
+  });
+  
+  // Fit map to show all updated markers
+  if (window.avMap && locations.length > 0) {
+    const bounds = L.latLngBounds(locations.map(loc => [loc.lat, loc.lng]));
+    window.avMap.fitBounds(bounds.pad(0.12));
+  }
+}
+
+// Helper functions for sync
+function getRiverSectionColor(section) {
+  const colors = {
+    'upstream': '#059669',
+    'midstream': '#d97706', 
+    'downstream': '#dc2626'
+  };
+  return colors[section] || '#3b82f6';
+}
+
+function getRiverSectionLabel(section) {
+  const labels = {
+    'upstream': 'Upstream',
+    'midstream': 'Midstream',
+    'downstream': 'Downstream'
+  };
+  return labels[section] || section;
+}
+
+function generatePopupContent(loc) {
+  const devices = locationDevices[loc.id] || [];
+  const dHtml = devices.length > 0 ? 
+    `<div style="margin:8px 0;padding-top:8px;border-top:1px solid #f0f0f0">
+      <div style="font-size:10px;font-weight:600;color:#0d1117;margin-bottom:4px;letter-spacing:.04em;text-transform:uppercase">Devices</div>
+      ${devices.map(d => {
+        const c = d.status === 'active' ? '#059669' : d.status === 'maintenance' ? '#3b82f6' : '#9ca3af';
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-radius:4px;background:#f9fafb;margin-bottom:2px">
+          <span style="font-size:11px;color:#0d1117;display:flex;align-items:center;gap:5px">
+            <span style="width:5px;height:5px;border-radius:50%;background:${c};display:inline-block"></span>
+            ${d.device_name}
+          </span>
+          <span style="font-size:10px;color:${c};font-weight:600">${d.status === 'active' ? 'Active' : d.status === 'maintenance' ? 'Maint.' : 'Offline'}</span>
+        </div>`;
+      }).join('')}
+    </div>` : 
+    `<div style="margin:8px 0;font-size:11px;color:#9ca3af;padding-top:8px;border-top:1px solid #f0f0f0">No devices assigned</div>`;
+  
+  return `<div style="font-family:'Instrument Sans',sans-serif;min-width:210px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+      <div style="width:8px;height:8px;border-radius:50%;background:${getRiverSectionColor(loc.river_section)}"></div>
+      <div style="font-size:13px;font-weight:600;color:#0d1117">${getRiverSectionLabel(loc.river_section)}</div>
+    </div>
+    <div style="font-size:11px;color:#3d4a5c;margin-bottom:4px">${loc.name}</div>
+    ${dHtml}
+    <div style="display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0">
+      <button onclick="event.stopPropagation();window.location.href='devices.php?action=edit_location&loc_id=${loc.id}'" 
+        style="flex:1;padding:5px;font-size:11px;border:1px solid #1a56db;background:#eff4ff;color:#1a56db;border-radius:5px;cursor:pointer;font-family:inherit">Edit</button>
+      <button onclick="event.stopPropagation();if(confirm('Delete ${loc.name}?'))window.location.href='devices.php?action=delete_location&loc_id=${loc.id}'" 
+        style="flex:1;padding:5px;font-size:11px;border:1px solid #dc2626;background:#fee2e2;color:#dc2626;border-radius:5px;cursor:pointer;font-family:inherit">Delete</button>
+    </div>
+    <div style="font-size:10px;color:#8897aa;margin-top:6px;font-family:'JetBrains Mono',monospace;text-align:center">${loc.lat.toFixed(5)}°N · ${loc.lng.toFixed(5)}°E</div>
+  </div>`;
+}
+
+function showSyncNotification(message) {
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #059669;
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 9999;
+    max-width: 400px;
+    animation: slideInRight 0.3s ease-out;
+  `;
+  notification.textContent = message;
+  
+  // Add animation
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  `;
+  document.head.appendChild(style);
+  
+  document.body.appendChild(notification);
+  
+  // Auto-remove after 3 seconds
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.style.animation = 'slideInRight 0.3s ease-out reverse';
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 300);
+    }
+  }, 3000);
+}
 </script>
 </body>
 </html>
