@@ -1167,9 +1167,17 @@ async function _sendTick() {
 }
 
 function startSim(){
-  if(_st) return;
   const ms=parseInt(document.getElementById('simInterval').value);
   const mode=document.getElementById('simMode').value;
+  
+  // If already running, stop first then restart with new settings
+  if(_st) {
+    clearInterval(_st); _st=null;
+    _slog(`↻ Restarting — mode:${mode} · interval:${ms/1000}s`,'#7c3aed');
+  } else {
+    _slog(` Started — mode:${mode} · interval:${ms/1000}s · devices:[${SIM_DEVICES.join(',')}]`,'#7c3aed');
+  }
+  
   SIM_DEVICES.forEach(id=>_initDs(id,mode)); _di=0;
   _st=setInterval(_sendTick,ms);
   document.getElementById('simStatus').textContent=' Running';
@@ -1177,7 +1185,6 @@ function startSim(){
   document.getElementById('simStartBtn').disabled=true;
   document.getElementById('simStopBtn').disabled=false;
   document.getElementById('simStopBtn').style.opacity='1';
-  _slog(` Started — mode:${mode} · interval:${ms/1000}s · devices:[${SIM_DEVICES.join(',')}]`,'#7c3aed');
   saveMonitorState(true);
   _sendTick();
 }
@@ -1326,6 +1333,10 @@ document.addEventListener('DOMContentLoaded',()=>{
   updateWaterConditions(<?= json_encode($sectionConditions, JSON_NUMERIC_CHECK) ?>);
   startSync(10000);
   restoreMonitorIfRunning();
+  
+  // Auto-restart simulation when interval or mode changes
+  document.getElementById('simInterval').addEventListener('change',()=>{ if(_st) startSim(); });
+  document.getElementById('simMode').addEventListener('change',()=>{ if(_st) startSim(); });
 });
 </script>
 </body>
