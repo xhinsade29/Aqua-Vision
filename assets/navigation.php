@@ -413,9 +413,9 @@ $logoSrc = $assetBase . '/logo.png';
       </div>
     </a>
 
-    <a href="/Aqua-Vision/apps/admin/sediments.php"
-       class="av-nav-item <?= $currentPage === 'sediments' ? 'active' : '' ?>"
-       aria-current="<?= $currentPage === 'sediments' ? 'page' : 'false' ?>">
+    <a href="/Aqua-Vision/apps/admin/reports.php"
+       class="av-nav-item <?= $currentPage === 'reports' ? 'active' : '' ?>"
+       aria-current="<?= $currentPage === 'reports' ? 'page' : 'false' ?>">
       <div class="av-nav-icon" aria-hidden="true">
         <svg viewBox="0 0 16 16" fill="none">
           <path d="M2 12 Q8 8, 14 12" stroke="#8B4513" stroke-width="1.5" fill="none"/>
@@ -425,8 +425,8 @@ $logoSrc = $assetBase . '/logo.png';
         </svg>
       </div>
       <div class="av-nav-label-wrap">
-        <div class="av-nav-label">Sediments</div>
-        <div class="av-nav-sublabel">Particle analysis</div>
+        <div class="av-nav-label">Reports</div>
+        <div class="av-nav-sublabel">Particles analysis</div>
       </div>
     </a>
 

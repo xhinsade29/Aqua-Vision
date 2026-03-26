@@ -1123,10 +1123,10 @@ function _slog(msg,color){
   const d=document.createElement('div');
   d.style.cssText=`color:${color||'var(--ink3)'};padding:1px 0`;
   d.textContent=`[${now}]  ${msg}`;
-  log.insertBefore(d,log.firstChild);
-  while(log.children.length>80) log.removeChild(log.lastChild);
-  // Auto-scroll to top (newest entries)
-  log.scrollTop = 0;
+  log.appendChild(d);
+  while(log.children.length>80) log.removeChild(log.firstChild);
+  // Auto-scroll to bottom (newest entries at bottom)
+  log.scrollTop = log.scrollHeight;
 }
 
 async function _sendTick() {
