@@ -4,6 +4,12 @@
  * Handles dashboard data fetching and simulation
  */
 
+// Set time limit to prevent timeouts
+set_time_limit(30); // 30 seconds
+
+// Disable error display for production
+error_reporting(0);
+
 require_once '../../../database/config.php';
 
 header('Content-Type: application/json');
@@ -42,22 +48,30 @@ $conn->close();
 // ── API Functions ────────────────────────────────────────
 
 function av_overview_api_simulate(mysqli $conn): void {
-    // Get random device
+    // Get JSON input from request body
+    $jsonInput = file_get_contents('php://input');
+    $input = json_decode($jsonInput, true);
+    
+    $deviceId = $input['device_id'] ?? null;
+    
+    if (!$deviceId) {
+        echo json_encode(['error' => 'Device ID required']);
+        return;
+    }
+    
+    // Get the specific device
     $deviceRes = $conn->query("
         SELECT device_id, device_name 
         FROM devices 
-        WHERE status = 'active' 
-        ORDER BY RAND() 
-        LIMIT 1
+        WHERE device_id = $deviceId AND status = 'active'
     ");
     
     if (!$deviceRes || $deviceRes->num_rows === 0) {
-        echo json_encode(['error' => 'No active devices found']);
+        echo json_encode(['error' => 'Device not found or inactive']);
         return;
     }
     
     $device = $deviceRes->fetch_assoc();
-    $deviceId = $device['device_id'];
     
     // Get all sensors for this device
     $sensorRes = $conn->query("
@@ -73,7 +87,9 @@ function av_overview_api_simulate(mysqli $conn): void {
     
     $readings = [];
     $alerts = [];
+    $lastReadingId = 0;
     
+    // Generate readings for each sensor
     while ($sensor = $sensorRes->fetch_assoc()) {
         $sensorId = $sensor['sensor_id'];
         $sensorType = $sensor['sensor_type'];
@@ -91,13 +107,7 @@ function av_overview_api_simulate(mysqli $conn): void {
         
         if ($insertRes) {
             $readingId = $conn->insert_id;
-            $readings[] = [
-                'sensor_id' => $sensorId,
-                'sensor_type' => $sensorType,
-                'value' => $value,
-                'unit' => $sensor['unit'],
-                'recorded_at' => date('Y-m-d H:i:s')
-            ];
+            $lastReadingId = $readingId;
             
             // Check for alerts
             if ($value < $minThreshold || $value > $maxThreshold) {
@@ -118,6 +128,14 @@ function av_overview_api_simulate(mysqli $conn): void {
                     'created_at' => date('Y-m-d H:i:s')
                 ];
             }
+            
+            $readings[] = [
+                'sensor_id' => $sensorId,
+                'sensor_type' => $sensorType,
+                'value' => $value,
+                'unit' => $sensor['unit'],
+                'recorded_at' => date('Y-m-d H:i:s')
+            ];
         }
     }
     
@@ -126,9 +144,10 @@ function av_overview_api_simulate(mysqli $conn): void {
     
     echo json_encode([
         'success' => true,
-        'device' => $device,
+        'device_name' => $device['device_name'],
+        'reading_id' => $lastReadingId,
         'readings' => $readings,
-        'alerts' => $alerts
+        'alerts_created' => $alerts
     ]);
 }
 
