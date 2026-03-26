@@ -381,24 +381,7 @@ $logoSrc = $assetBase . '/logo.png';
       </div>
     </a>
 
-    <a href="/Aqua-Vision/apps/admin/live-data.php"
-       class="av-nav-item <?= $currentPage === 'live-data' ? 'active' : '' ?>"
-       aria-current="<?= $currentPage === 'live-data' ? 'page' : 'false' ?>">
-      <div class="av-nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <path d="M2 10 C4 6, 6 12, 8 8, 10 4, 12 9, 14 7"
-                stroke="#4988C4" stroke-width="1.5" stroke-linecap="round" fill="none"/>
-          <circle cx="14" cy="7" r="1.5" fill="#BDE8F5"/>
-        </svg>
-      </div>
-      <div class="av-nav-label-wrap">
-        <div class="av-nav-label">Live Data</div>
-        <div class="av-nav-sublabel">Sensor readings</div>
-      </div>
-      <span class="av-badge info" aria-label="Live feed active">Live</span>
-    </a>
-
-    <a href="/Aqua-Vision/apps/admin/history.php"
+    <a href="/Aqua-Vision/apps/admin/activitylog.php"
        class="av-nav-item <?= $currentPage === 'history' ? 'active' : '' ?>"
        aria-current="<?= $currentPage === 'history' ? 'page' : 'false' ?>">
       <div class="av-nav-icon" aria-hidden="true">
@@ -430,23 +413,6 @@ $logoSrc = $assetBase . '/logo.png';
       </div>
     </a>
 
-    <a href="/Aqua-Vision/apps/admin/alerts.php"
-       class="av-nav-item <?= $currentPage === 'alerts' ? 'active' : '' ?>"
-       aria-current="<?= $currentPage === 'alerts' ? 'page' : 'false' ?>">
-      <div class="av-nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <path d="M8 2 L14 13 H2 Z" stroke="#4988C4" stroke-width="1.4" stroke-linejoin="round" fill="none"/>
-          <line x1="8" y1="6" x2="8" y2="9.5" stroke="#4988C4" stroke-width="1.4" stroke-linecap="round"/>
-          <circle cx="8" cy="11.5" r="0.8" fill="#4988C4"/>
-        </svg>
-      </div>
-      <div class="av-nav-label-wrap">
-        <div class="av-nav-label">Alerts</div>
-        <div class="av-nav-sublabel">Notifications</div>
-      </div>
-      <span class="av-badge" aria-label="3 unread alerts">3</span>
-    </a>
-
     <div class="av-nav-divider" role="separator"></div>
 
     <!-- ── Infrastructure Group ──────────────────────── -->
@@ -473,22 +439,6 @@ $logoSrc = $assetBase . '/logo.png';
   <!-- ── Admin Group ───────────────────────────────── -->
   <div class="av-admin-section">
     <div class="av-admin-label" aria-hidden="true">Admin</div>
-
-    <a href="/Aqua-Vision/apps/admin/settings.php"
-       class="av-nav-item <?= $currentPage === 'settings' ? 'active' : '' ?>"
-       aria-current="<?= $currentPage === 'settings' ? 'page' : 'false' ?>">
-      <div class="av-nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="8" r="2" stroke="#4988C4" stroke-width="1.4"/>
-          <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"
-                stroke="#4988C4" stroke-width="1.3" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <div class="av-nav-label-wrap">
-        <div class="av-nav-label">System Settings</div>
-        <div class="av-nav-sublabel">Configuration</div>
-      </div>
-    </a>
 
     <a href="/Aqua-Vision/apps/admin/users.php"
        class="av-nav-item <?= $currentPage === 'users' ? 'active' : '' ?>"

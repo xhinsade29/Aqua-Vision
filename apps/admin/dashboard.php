@@ -1292,11 +1292,27 @@ const locationDevices = <?= json_encode($locationDevices, JSON_NUMERIC_CHECK) ?>
 const _mapMk={};
 
 (function(){
-  const avMap=L.map('av-map',{zoomControl:false}).setView([8.374,124.903],13);
+  // Mangima River coordinates
+  const mangimaStart = [8.345958, 124.898607];
+  const mangimaEnd = [8.413179, 124.909497];
+  
+  // Calculate center between start and end
+  const centerLat = (mangimaStart[0] + mangimaEnd[0]) / 2;
+  const centerLng = (mangimaStart[1] + mangimaEnd[1]) / 2;
+  
+  // Create map centered on Mangima River with bounds covering start to end
+  const avMap=L.map('av-map',{
+    zoomControl:false,
+    minZoom:12,
+    maxZoom:16,
+    maxBounds:[[8.32,124.88],[8.42,124.93]],  // Bounds covering Mangima River
+    maxBoundsViscosity:1.0  // Make bounds hard (can't drag outside)
+  }).setView([centerLat, centerLng],13);
+  
   L.control.zoom({position:'bottomright'}).addTo(avMap);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CartoDB',subdomains:'abcd',maxZoom:19}).addTo(avMap);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CartoDB',subdomains:'abcd',maxZoom:19}).addTo(avMap);
   if(!document.getElementById('av-rs')){const s=document.createElement('style');s.id='av-rs';s.textContent='@keyframes av-ripple{0%{transform:scale(.6);opacity:.9}100%{transform:scale(2.4);opacity:0}}';document.head.appendChild(s);}
-  const R=[[8.346139,124.897389],[8.345958,124.898607],[8.346955,124.899036],[8.347603,124.898081],[8.349471,124.896461],[8.349216,124.895474],[8.349535,124.894755],[8.348909,124.894058],[8.349881,124.893209],[8.352050,124.889584],[8.351096,124.889497],[8.351978,124.888415],[8.352369,124.887056],[8.352210,124.886676],[8.352643,124.886427],[8.353468,124.884863],[8.355492,124.883376],[8.356292,124.881332],[8.358270,124.881140],[8.368532,124.875713],[8.373977,124.876690],[8.381657,124.897203],[8.394810,124.903483],[8.396343,124.907500],[8.399906,124.911121],[8.400757,124.910773],[8.401360,124.910322]];
+  const R=[[8.345958,124.898607],[8.346955,124.899036],[8.347603,124.898081],[8.349471,124.896461],[8.349216,124.895474],[8.349535,124.894755],[8.348909,124.894058],[8.349881,124.893209],[8.352050,124.889584],[8.351096,124.889497],[8.351978,124.888415],[8.352369,124.887056],[8.352210,124.886676],[8.352643,124.886427],[8.353468,124.884863],[8.355492,124.883376],[8.356292,124.881332],[8.358270,124.881140],[8.368532,124.875713],[8.373977,124.876690],[8.381657,124.897203],[8.394810,124.903483],[8.396343,124.907500],[8.399906,124.911121],[8.400757,124.910773],[8.401407,124.910581],[8.401636,124.910868],[8.401774,124.911007],[8.402125,124.911168],[8.402489,124.911218],[8.402853,124.911196],[8.403020,124.911119],[8.403792,124.910506],[8.405310,124.909972],[8.405901,124.909983],[8.406337,124.910087],[8.406533,124.910179],[8.406700,124.910291],[8.406745,124.910385],[8.406713,124.910512],[8.405924,124.911388],[8.405818,124.911576],[8.405829,124.911689],[8.405924,124.911801],[8.406275,124.911984],[8.406715,124.912414],[8.407049,124.912661],[8.409034,124.913466],[8.409793,124.913708],[8.410064,124.913713],[8.410472,124.913676],[8.411629,124.913198],[8.412245,124.912800],[8.412515,124.912462],[8.412632,124.911962],[8.413237,124.909739],[8.413179,124.909497]];
   L.polyline(R,{color:'#0d1117',weight:11,opacity:.05}).addTo(avMap);
   L.polyline(R,{color:'#1a56db',weight:5,opacity:.35}).addTo(avMap);
   L.polyline(R,{color:'#60a5fa',weight:2.5,opacity:.6}).addTo(avMap);
@@ -1304,8 +1320,8 @@ const _mapMk={};
   let doff=0; setInterval(()=>{doff-=1.5;fl.setStyle({dashOffset:String(doff)});},60);
   [3,7,10,14,18,22].forEach(i=>{if(i>=R.length-1)return;const from=R[i],to=R[i+1],lat=(from[0]+to[0])/2,lng=(from[1]+to[1])/2;const angle=Math.atan2(to[1]-from[1],to[0]-from[0])*180/Math.PI-90;L.marker([lat,lng],{icon:L.divIcon({html:`<div style="transform:rotate(${angle}deg);color:#60a5fa;font-size:9px;opacity:.6">▲</div>`,iconSize:[10,10],iconAnchor:[5,5],className:''}),interactive:false}).addTo(avMap);});
   function pIcon(color,label){return L.divIcon({html:`<div style="position:relative;width:40px;height:40px"><div style="position:absolute;inset:0;border-radius:50%;background:${color};opacity:.12;animation:av-ripple 2s ease-out infinite"></div><div style="position:absolute;inset:8px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.15)"></div><div style="position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:9px;font-weight:600;color:${color};font-family:'Instrument Sans',sans-serif">${label}</div></div>`,iconSize:[40,40],iconAnchor:[20,20],className:''});}
-  L.marker([8.346138,124.897384],{icon:pIcon('#059669','START')}).addTo(avMap);
-  L.marker([8.401360,124.910322],{icon:pIcon('#dc2626','END')}).addTo(avMap);
+  L.marker([8.345958,124.898607],{icon:pIcon('#059669','START')}).addTo(avMap);
+  L.marker([8.413179,124.909497],{icon:pIcon('#dc2626','END')}).addTo(avMap);
   L.marker([8.368,124.882],{icon:L.divIcon({html:`<div style="font-family:'Instrument Serif',serif;font-size:12px;font-style:italic;color:#1a56db;opacity:.5;white-space:nowrap;transform:rotate(42deg)">Mangima River</div>`,iconSize:[130,20],iconAnchor:[65,10],className:''}),interactive:false}).addTo(avMap);
   const sC={upstream:'#059669',midstream:'#d97706',downstream:'#dc2626'};
   const sL={upstream:'Upstream',midstream:'Midstream',downstream:'Downstream'};
