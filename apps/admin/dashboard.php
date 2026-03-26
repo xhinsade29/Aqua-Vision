@@ -1244,8 +1244,7 @@ function _slog(msg, color) {
 
 async function _sendTick() {
   const mode = document.getElementById('simMode').value;
-  const tgt  = parseInt(document.getElementById('simDeviceId').value) || 0;
-  const ids  = tgt ? [tgt] : SIM_DEVICES;
+  const ids = SIM_DEVICES; // Use all devices
   if (!ids.length) { _slog('No active devices.', 'var(--warn)'); return; }
   const id = ids[_di % ids.length]; _di++;
   const p = {device_id:id, temperature:_next(id,'temperature',mode), ph_level:_next(id,'ph_level',mode), turbidity:_next(id,'turbidity',mode), dissolved_oxygen:_next(id,'dissolved_oxygen',mode), water_level:_next(id,'water_level',mode)};
@@ -1271,23 +1270,22 @@ function startSim() {
   if (_st) return;
   const ms   = parseInt(document.getElementById('simInterval').value);
   const mode = document.getElementById('simMode').value;
-  const tgt  = parseInt(document.getElementById('simDeviceId').value) || 0;
-  const ids  = tgt ? [tgt] : SIM_DEVICES;
+  const ids  = SIM_DEVICES; // Simulate all devices
   ids.forEach(id => _initDs(id, mode)); _di = 0;
   _st = setInterval(_sendTick, ms);
-  document.getElementById('simStatus').textContent = '● Running';
+  document.getElementById('simStatus').textContent = ' Running';
   document.getElementById('simStatus').className = 'tag tag-good';
   document.getElementById('simStartBtn').disabled = true;
   document.getElementById('simStopBtn').disabled = false;
   document.getElementById('simStopBtn').style.opacity = '1';
-  _slog(`▶ Started — mode:${mode} · interval:${ms/1000}s · devices:[${ids.join(',')}]`, '#7c3aed');
+  _slog(` Started — mode:${mode} · interval:${ms/1000}s · devices:[${ids.join(',')}]`, '#7c3aed');
   saveMonitorState(true);
   _sendTick();
 }
 function stopSim() {
   if (!_st) return;
   clearInterval(_st); _st = null;
-  document.getElementById('simStatus').textContent = '● Stopped';
+  document.getElementById('simStatus').textContent = ' Stopped';
   document.getElementById('simStatus').className = 'tag tag-mute';
   document.getElementById('simStartBtn').disabled = false;
   document.getElementById('simStopBtn').disabled = true;
