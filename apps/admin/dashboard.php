@@ -406,7 +406,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
 .leg-dot{width:7px;height:7px;border-radius:50%}
 .sim-log-wrap{padding:10px 18px 12px;border-top:1px solid var(--rule);background:var(--surf2)}
 .sim-log-label{font-size:10px;font-weight:600;color:var(--ink4);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
-#simLog{max-height:100px;overflow-y:auto;font-family:var(--mono);font-size:10.5px;line-height:1.6}
+#simLog{overflow-y:auto;font-family:var(--mono);font-size:10.5px;line-height:1.6}
 .dev-panel{overflow-y:auto;max-height:500px}
 .dev-panel-empty{padding:48px 24px;text-align:center;color:var(--ink4)}
 .dev-panel-empty .empty-icon{font-size:32px;margin-bottom:10px;opacity:.4}
@@ -620,9 +620,9 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
             <div id="simLastDevice" style="font-size:11px;color:var(--ink3);font-family:var(--mono);margin-top:4px;line-height:1.5">—</div>
           </div>
         </div>
-        <div style="flex:1;display:flex;flex-direction:column">
-          <div class="sim-log-label" style="margin-bottom:6px">Simulation Log</div>
-          <div id="simLog" style="flex:1;background:#f8f9fa;border:1px solid #e9ecef;border-radius:var(--r);padding:.75rem;max-height:280px;overflow-y:auto;font-family:var(--mono);font-size:10.5px;line-height:1.6">
+        <div style="display:flex;flex-direction:column;height:280px">
+          <div class="sim-log-label" style="margin-bottom:6px;flex-shrink:0">Simulation Log</div>
+          <div id="simLog" style="height:250px;background:#f8f9fa;border:1px solid #e9ecef;border-radius:var(--r);padding:.75rem;overflow-y:auto;font-family:var(--mono);font-size:10.5px;line-height:1.6">
             <div style="color:var(--ink4)">Monitoring stopped — press ▶ Start to begin.</div>
           </div>
         </div>
@@ -1125,6 +1125,8 @@ function _slog(msg,color){
   d.textContent=`[${now}]  ${msg}`;
   log.insertBefore(d,log.firstChild);
   while(log.children.length>80) log.removeChild(log.lastChild);
+  // Auto-scroll to top (newest entries)
+  log.scrollTop = 0;
 }
 
 async function _sendTick() {
