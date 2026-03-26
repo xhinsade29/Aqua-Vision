@@ -716,6 +716,45 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
   </div>
 </div>
 
+<!-- Device Metric Charts -->
+<div class="section-head fade-in">
+  <div class="section-label">Device Metrics Trends</div>
+  <span class="tag tag-info">24-Hour History</span>
+</div>
+<div class="metric-charts-grid fade-in" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px">
+  
+  <div class="card metric-chart-card" style="padding:12px">
+    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🌡 Temperature (°C)</div>
+    <div style="height:180px"><canvas id="tempChart"></canvas></div>
+  </div>
+  
+  <div class="card metric-chart-card" style="padding:12px">
+    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🧪 pH Level</div>
+    <div style="height:180px"><canvas id="phChart"></canvas></div>
+  </div>
+  
+  <div class="card metric-chart-card" style="padding:12px">
+    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🌫 Turbidity (NTU)</div>
+    <div style="height:180px"><canvas id="turbChart"></canvas></div>
+  </div>
+  
+  <div class="card metric-chart-card" style="padding:12px">
+    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">💧 Dissolved O₂ (mg/L)</div>
+    <div style="height:180px"><canvas id="doChart"></canvas></div>
+  </div>
+  
+  <div class="card metric-chart-card" style="padding:12px">
+    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🌊 Water Level (m)</div>
+    <div style="height:180px"><canvas id="levelChart"></canvas></div>
+  </div>
+  
+  <div class="card metric-chart-card" style="padding:12px">
+    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🟤 Sediments (mg/L)</div>
+    <div style="height:180px"><canvas id="sedChart"></canvas></div>
+  </div>
+  
+</div>
+
 <!-- Chart -->
 <div class="section-head fade-in">
   <div class="section-label">24-Hour Trends</div>
@@ -891,6 +930,91 @@ function updateChart() {
   chart.update('none');
 }
 
+// ── Individual Metric Charts ─────────────────────────────────
+const deviceColors = ['#059669', '#d97706', '#dc2626', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b'];
+const metricCharts = {};
+
+function createMetricChart(canvasId, metricKey, metricLabel, metricColor) {
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if (!ctx) return null;
+  
+  const datasets = Object.keys(allChartData).map((deviceId, idx) => {
+    const deviceInfo = DEV_INFO[deviceId];
+    const deviceName = deviceInfo ? deviceInfo.name : `Device ${deviceId}`;
+    const color = deviceColors[idx % deviceColors.length];
+    return {
+      label: deviceName,
+      data: allChartData[deviceId][metricKey] || Array(24).fill(null),
+      borderColor: color,
+      backgroundColor: color + '20',
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 3,
+      fill: false,
+      tension: 0.4,
+      spanGaps: true
+    };
+  });
+  
+  return new Chart(ctx, {
+    type: 'line',
+    data: { labels: hours, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { 
+          display: true, 
+          position: 'bottom',
+          labels: { boxWidth: 8, padding: 8, font: { size: 9 }, usePointStyle: true }
+        },
+        tooltip: { 
+          mode: 'index', 
+          intersect: false, 
+          backgroundColor: 'rgba(13,17,23,.92)', 
+          padding: 8, 
+          cornerRadius: 6,
+          titleFont: { size: 10 },
+          bodyFont: { size: 10 }
+        }
+      },
+      scales: {
+        x: { display: false },
+        y: { 
+          display: true,
+          grid: { color: 'rgba(13,17,23,.04)' }, 
+          ticks: { font: { size: 9 } }
+        }
+      }
+    }
+  });
+}
+
+function initMetricCharts() {
+  metricCharts.temperature = createMetricChart('tempChart', 'temperature', 'Temperature (°C)', '#ef4444');
+  metricCharts.ph = createMetricChart('phChart', 'pH', 'pH Level', '#3b82f6');
+  metricCharts.turbidity = createMetricChart('turbChart', 'turbidity', 'Turbidity (NTU)', '#d97706');
+  metricCharts.dissolved_oxygen = createMetricChart('doChart', 'dissolved_oxygen', 'Dissolved O₂ (mg/L)', '#10b981');
+  metricCharts.water_level = createMetricChart('levelChart', 'water_level', 'Water Level (m)', '#8b5cf6');
+  metricCharts.sediments = createMetricChart('sedChart', 'sediments', 'Sediments (mg/L)', '#92400e');
+}
+
+function updateMetricCharts() {
+  Object.keys(metricCharts).forEach(key => {
+    const chart = metricCharts[key];
+    if (!chart) return;
+    
+    chart.data.datasets.forEach((dataset, idx) => {
+      const deviceId = Object.keys(allChartData)[idx];
+      if (deviceId) {
+        dataset.data = allChartData[deviceId][key] || Array(24).fill(null);
+      }
+    });
+    chart.update('none');
+  });
+}
+
 // ── Device Panel ──────────────────────────────────────────────
 let DEV_READINGS = <?= json_encode(
   array_combine(
@@ -1044,6 +1168,7 @@ function _applySync(d) {
     CHART_DS.forEach((ds,i)=>{ chart.data.datasets[i].data=d.chart_data[ds.key]||Array(24).fill(null); });
     Object.keys(d.device_chart_data||{}).forEach(did=>{ allChartData[did]=d.device_chart_data[did]; });
     updateChart();
+    updateMetricCharts();
   }
 
   // Alerts
@@ -1347,6 +1472,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   buildLogGroups(<?= json_encode($logs, JSON_NUMERIC_CHECK) ?>);
   renderLogGroups();
   updateWaterConditions(<?= json_encode($sectionConditions, JSON_NUMERIC_CHECK) ?>);
+  initMetricCharts();
   startSync(10000);
   restoreMonitorIfRunning();
   
