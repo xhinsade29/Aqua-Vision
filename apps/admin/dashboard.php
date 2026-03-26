@@ -661,6 +661,80 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
   <span id="wcLastUpdate" class="tag tag-info">Live</span>
 </div>
 
+<!-- Overall Water Conditions Summary -->
+<div class="card fade-in" style="margin-bottom:16px">
+  <div class="card-head">
+    <div class="card-head-l">
+      <span class="card-title">Overall Water Conditions Summary</span>
+      <select id="pieDeviceSelector" class="sel" onchange="updateConditionPieChart(); updateOverallSensorStatus();" style="margin-left:12px">
+        <option value="">All Devices</option>
+        <?php foreach ($devices as $dev): ?>
+          <option value="<?= $dev['device_id'] ?>"><?= htmlspecialchars($dev['device_name']) ?> (<?= ucfirst($dev['river_section']??'') ?>)</option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="card-head-r"><span class="tag <?= $warnCount===0?'tag-good':($warnCount<=2?'tag-warn':'tag-crit') ?>" id="pieStatusTag"><?= $warnCount===0?'All Normal':($warnCount<=2?'Moderate':'Critical') ?></span></div>
+  </div>
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;padding:16px">
+    <!-- Sensor Status Grid -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <?php
+      $tempVal = $chartData['temperature'][23] ?? null;
+      $tempStatus = $tempVal === null ? '—' : ($tempVal < 20 ? 'Cold' : ($tempVal > 32 ? 'Hot' : 'Normal'));
+      
+      $phVal = $chartData['pH'][23] ?? null;
+      $phStatus = $phVal === null ? '—' : ($phVal < 6.5 ? 'Acidic' : ($phVal > 8.5 ? 'Alkaline' : 'Neutral'));
+      
+      $turbVal = $chartData['turbidity'][23] ?? null;
+      $turbStatus = $turbVal === null ? '—' : ($turbVal < 5 ? 'Crystal Clear' : ($turbVal < 25 ? 'Clear' : ($turbVal < 50 ? 'Cloudy' : 'Polluted')));
+      
+      $doVal = $chartData['dissolved_oxygen'][23] ?? null;
+      $doStatus = $doVal === null ? '—' : ($doVal < 5 ? 'Low Oxygen' : ($doVal > 10 ? 'High Oxygen' : 'Healthy'));
+      
+      $wlVal = $chartData['water_level'][23] ?? null;
+      $wlStatus = $wlVal === null ? '—' : ($wlVal < 0.5 ? 'Low Level' : ($wlVal > 2.5 ? 'High Level' : 'Normal'));
+      
+      $sedVal = $chartData['sediments'][23] ?? null;
+      $sedStatus = $sedVal === null ? '—' : ($sedVal < 50 ? 'Minimal' : ($sedVal < 200 ? 'Moderate' : ($sedVal < 400 ? 'High' : 'Severe')));
+      
+      $overallSensors = [
+        ['key'=>'temperature','icon'=>'🌡','label'=>'Temperature','unit'=>'°C','value'=>$tempVal,'min'=>20,'max'=>35,'status'=>$tempStatus],
+        ['key'=>'ph_level','icon'=>'🧪','label'=>'pH Level','unit'=>'pH','value'=>$phVal,'min'=>6.5,'max'=>8.5,'status'=>$phStatus],
+        ['key'=>'turbidity','icon'=>'🌫','label'=>'Turbidity','unit'=>'NTU','value'=>$turbVal,'min'=>0,'max'=>50,'status'=>$turbStatus],
+        ['key'=>'dissolved_oxygen','icon'=>'💧','label'=>'Dissolved O₂','unit'=>'mg/L','value'=>$doVal,'min'=>5,'max'=>14,'status'=>$doStatus],
+        ['key'=>'water_level','icon'=>'🌊','label'=>'Water Level','unit'=>'m','value'=>$wlVal,'min'=>0.5,'max'=>3.0,'status'=>$wlStatus],
+        ['key'=>'sediments','icon'=>'🟤','label'=>'Sediments','unit'=>'mg/L','value'=>$sedVal,'min'=>0,'max'=>500,'status'=>$sedStatus],
+      ];
+      foreach ($overallSensors as $os):
+        $v = $os['value'];
+        $good = $v!==null ? ($v>=$os['min']&&$v<=$os['max']) : null;
+        $vc = $good===true?'#059669':($good===false?'#dc2626':'var(--ink4)');
+        $bg = $good===true?'#d1fae5':($good===false?'#fee2e2':'#f3f4f6');
+      ?>
+      <div style="text-align:center;padding:16px 12px;background:<?= $bg ?>;border-radius:var(--r)" class="sensor-status-box" data-sensor="<?= $os['key'] ?>">
+        <div style="font-size:24px;margin-bottom:8px"><?= $os['icon'] ?></div>
+        <div style="font-size:11px;color:var(--ink4);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px"><?= $os['label'] ?></div>
+        <div style="font-size:12px;font-weight:600;color:<?= $vc ?>;padding:6px 12px;background:rgba(255,255,255,.7);border-radius:var(--r);display:inline-block;border:1px solid rgba(0,0,0,.05)" class="sensor-status-text">
+          <?= $os['status'] ?>
+        </div>
+      </div>
+      <?php endforeach ?>
+    </div>
+    <!-- Pie Chart -->
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;border-left:1px solid var(--rule);padding-left:16px">
+      <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">Condition Distribution</div>
+      <div style="height:180px;width:180px;position:relative">
+        <canvas id="conditionPieChart"></canvas>
+      </div>
+      <div id="pieLegend" style="display:flex;gap:12px;margin-top:12px;font-size:10px">
+        <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:#059669"></span>Normal</span>
+        <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:#d97706"></span>Moderate</span>
+        <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:#dc2626"></span>Critical</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="card fade-in" style="margin-bottom:24px">
   <div class="card-head">
     <div class="card-head-l"><span class="card-title">River Section Water Quality Overview</span></div>
@@ -1205,6 +1279,12 @@ function _applySync(d) {
   // Water conditions
   if(d.section_conditions) updateWaterConditions(d.section_conditions);
 
+  // Update pie chart with latest data
+  updateConditionPieChart();
+  
+  // Update Overall Water Conditions Summary sensor status boxes
+  updateOverallSensorStatus();
+
   // Logs
   if(d.logs&&d.logs.length>0){
     buildLogGroups(d.logs);
@@ -1465,6 +1545,215 @@ const _mapMk={};
   if(bounds.isValid()) avMap.fitBounds(bounds.pad(.12));
 })();
 
+// ── Condition Pie Chart ─────────────────────────────────────
+let conditionPieChart = null;
+const PIE_SENSOR_LIMITS = {
+  temperature: { min: 20, max: 35 },
+  ph_level: { min: 6.5, max: 8.5 },
+  turbidity: { min: 0, max: 50 },
+  dissolved_oxygen: { min: 5, max: 14 },
+  water_level: { min: 0.5, max: 3.0 },
+  sediments: { min: 0, max: 500 }
+};
+
+function initConditionPieChart() {
+  const ctx = document.getElementById('conditionPieChart')?.getContext('2d');
+  if (!ctx) return;
+  
+  conditionPieChart = new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: ['Normal', 'Moderate', 'Critical'],
+      datasets: [{
+        data: [0, 0, 0],
+        backgroundColor: ['#059669', '#d97706', '#dc2626'],
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(13,17,23,.92)',
+          padding: 10,
+          cornerRadius: 6,
+          callbacks: {
+            label: function(context) {
+              const total = context.dataset.data.reduce((a, b) => a + b, 0);
+              const val = context.parsed;
+              const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+              return `${context.label}: ${val} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+  
+  updateConditionPieChart();
+}
+
+function updateConditionPieChart() {
+  const deviceId = document.getElementById('pieDeviceSelector')?.value || '';
+  let normal = 0, moderate = 0, critical = 0;
+  
+  // Get readings to analyze
+  let readingsToAnalyze = [];
+  
+  if (!deviceId) {
+    // All devices - aggregate all device readings
+    Object.values(DEV_READINGS).forEach(reading => {
+      if (reading) readingsToAnalyze.push(reading);
+    });
+  } else {
+    // Single device
+    const reading = DEV_READINGS[parseInt(deviceId)];
+    if (reading) readingsToAnalyze.push(reading);
+  }
+  
+  // Count conditions across all readings
+  readingsToAnalyze.forEach(reading => {
+    let deviceOutOfRange = 0;
+    let sensorCount = 0;
+    
+    Object.entries(PIE_SENSOR_LIMITS).forEach(([sensor, limits]) => {
+      const val = reading[sensor];
+      if (val !== null && val !== undefined) {
+        sensorCount++;
+        if (val < limits.min || val > limits.max) {
+          deviceOutOfRange++;
+        }
+      }
+    });
+    
+    if (sensorCount === 0) return; // Skip if no sensor data
+    
+    // Categorize this device's condition
+    if (deviceOutOfRange === 0) {
+      normal++;
+    } else if (deviceOutOfRange <= 2) {
+      moderate++;
+    } else {
+      critical++;
+    }
+  });
+  
+  // If showing all devices and no data, show overall system status
+  if (!deviceId && readingsToAnalyze.length === 0) {
+    // Use latest chart data as fallback
+    const sensors = ['temperature', 'ph_level', 'turbidity', 'dissolved_oxygen', 'water_level', 'sediments'];
+    let outOfRange = 0, totalSensors = 0;
+    
+    sensors.forEach(sensor => {
+      const val = dbData[sensor === 'ph_level' ? 'pH' : sensor]?.[23];
+      if (val !== null && val !== undefined) {
+        totalSensors++;
+        const limits = PIE_SENSOR_LIMITS[sensor];
+        if (val < limits.min || val > limits.max) outOfRange++;
+      }
+    });
+    
+    if (totalSensors > 0) {
+      if (outOfRange === 0) normal = 1;
+      else if (outOfRange <= 2) moderate = 1;
+      else critical = 1;
+    }
+  }
+  
+  // Update chart
+  if (conditionPieChart) {
+    conditionPieChart.data.datasets[0].data = [normal, moderate, critical];
+    conditionPieChart.update();
+  }
+  
+  // Update status tag
+  const total = normal + moderate + critical;
+  const tag = document.getElementById('pieStatusTag');
+  if (tag && total > 0) {
+    let statusText, tagClass;
+    if (critical > 0) {
+      statusText = 'Critical';
+      tagClass = 'tag-crit';
+    } else if (moderate > 0) {
+      statusText = 'Moderate';
+      tagClass = 'tag-warn';
+    } else {
+      statusText = 'All Normal';
+      tagClass = 'tag-good';
+    }
+    tag.textContent = statusText;
+    tag.className = `tag ${tagClass}`;
+  }
+}
+
+// Update Overall Water Conditions Summary sensor status boxes
+function updateOverallSensorStatus() {
+  const deviceId = document.getElementById('pieDeviceSelector')?.value || '';
+  
+  // Get the latest values based on device selection
+  let tempVal, phVal, turbVal, doVal, wlVal, sedVal;
+  
+  if (!deviceId) {
+    // All devices - use latest chart data (hour 23 = most recent)
+    tempVal = dbData.temperature?.[23] ?? null;
+    phVal = dbData.pH?.[23] ?? null;
+    turbVal = dbData.turbidity?.[23] ?? null;
+    doVal = dbData.dissolved_oxygen?.[23] ?? null;
+    wlVal = dbData.water_level?.[23] ?? null;
+    sedVal = dbData.sediments?.[23] ?? null;
+  } else {
+    // Single device - use device-specific data
+    const deviceData = DEV_READINGS[parseInt(deviceId)];
+    if (deviceData) {
+      tempVal = deviceData.temperature ?? null;
+      phVal = deviceData.ph_level ?? null;
+      turbVal = deviceData.turbidity ?? null;
+      doVal = deviceData.dissolved_oxygen ?? null;
+      wlVal = deviceData.water_level ?? null;
+      sedVal = deviceData.sediments ?? null;
+    }
+  }
+  
+  // Update each sensor status box
+  const sensors = [
+    { key: 'temperature', val: tempVal, min: 20, max: 35, 
+      getStatus: (v) => v === null ? '—' : (v < 20 ? 'Cold' : (v > 32 ? 'Hot' : 'Normal')) },
+    { key: 'ph_level', val: phVal, min: 6.5, max: 8.5,
+      getStatus: (v) => v === null ? '—' : (v < 6.5 ? 'Acidic' : (v > 8.5 ? 'Alkaline' : 'Neutral')) },
+    { key: 'turbidity', val: turbVal, min: 0, max: 50,
+      getStatus: (v) => v === null ? '—' : (v < 5 ? 'Crystal Clear' : (v < 25 ? 'Clear' : (v < 50 ? 'Cloudy' : 'Polluted'))) },
+    { key: 'dissolved_oxygen', val: doVal, min: 5, max: 14,
+      getStatus: (v) => v === null ? '—' : (v < 5 ? 'Low Oxygen' : (v > 10 ? 'High Oxygen' : 'Healthy')) },
+    { key: 'water_level', val: wlVal, min: 0.5, max: 3.0,
+      getStatus: (v) => v === null ? '—' : (v < 0.5 ? 'Low Level' : (v > 2.5 ? 'High Level' : 'Normal')) },
+    { key: 'sediments', val: sedVal, min: 0, max: 500,
+      getStatus: (v) => v === null ? '—' : (v < 50 ? 'Minimal' : (v < 200 ? 'Moderate' : (v < 400 ? 'High' : 'Severe'))) }
+  ];
+  
+  sensors.forEach(sensor => {
+    const box = document.querySelector(`.sensor-status-box[data-sensor="${sensor.key}"]`);
+    if (!box) return;
+    
+    const statusText = box.querySelector('.sensor-status-text');
+    if (!statusText) return;
+    
+    const status = sensor.getStatus(sensor.val);
+    const good = sensor.val !== null ? (sensor.val >= sensor.min && sensor.val <= sensor.max) : null;
+    const vc = good === true ? '#059669' : (good === false ? '#dc2626' : 'var(--ink4)');
+    const bg = good === true ? '#d1fae5' : (good === false ? '#fee2e2' : '#f3f4f6');
+    
+    // Update status text
+    statusText.textContent = status;
+    statusText.style.color = vc;
+    
+    // Update box background
+    box.style.background = bg;
+  });
+}
+
 // ── Boot ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
   const sel=document.getElementById('deviceSelector');
@@ -1473,6 +1762,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   renderLogGroups();
   updateWaterConditions(<?= json_encode($sectionConditions, JSON_NUMERIC_CHECK) ?>);
   initMetricCharts();
+  initConditionPieChart();
+  updateOverallSensorStatus(); // Initialize sensor status boxes
   startSync(10000);
   restoreMonitorIfRunning();
   
