@@ -1265,6 +1265,100 @@ include __DIR__ . '/../../assets/navigation.php';
                 </div>
             </div>
             
+            <!-- Devices Summary Dashboard -->
+            <?php
+            // Calculate device statistics
+            $statusCounts = [
+                'active' => 0, 'maintenance' => 0, 'displaced' => 0,
+                'damaged' => 0, 'inactive' => 0
+            ];
+            $sectionCounts = [
+                'upstream' => 0, 'midstream' => 0, 'downstream' => 0,
+                'unassigned' => 0
+            ];
+            
+            foreach ($devices as $device) {
+                $status = $device['status'] ?? 'inactive';
+                if (isset($statusCounts[$status])) {
+                    $statusCounts[$status]++;
+                }
+                
+                $section = $device['river_section'] ?? '';
+                if ($section && isset($sectionCounts[$section])) {
+                    $sectionCounts[$section]++;
+                } elseif (!$section) {
+                    $sectionCounts['unassigned']++;
+                }
+            }
+            ?>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <!-- Status Summary -->
+                <div class="card" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
+                    <div class="card-header" style="padding: 1rem;">
+                        <h4 style="font-size: 0.875rem; color: var(--gray-600); margin: 0;">📊 Devices by Status</h4>
+                    </div>
+                    <div style="padding: 1rem; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                        <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #16a34a;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #16a34a;"><?= $statusCounts['active'] ?></div>
+                            <div style="font-size: 0.75rem; color: var(--gray-500);">Active</div>
+                        </div>
+                        <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #d97706;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #d97706;"><?= $statusCounts['maintenance'] ?></div>
+                            <div style="font-size: 0.75rem; color: var(--gray-500);">Maintenance</div>
+                        </div>
+                        <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #7c3aed;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #7c3aed;"><?= $statusCounts['displaced'] ?></div>
+                            <div style="font-size: 0.75rem; color: var(--gray-500);">Displaced</div>
+                        </div>
+                        <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #1f2937;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #1f2937;"><?= $statusCounts['damaged'] ?></div>
+                            <div style="font-size: 0.75rem; color: var(--gray-500);">Damaged</div>
+                        </div>
+                        <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #dc2626; grid-column: span 2;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #dc2626;"><?= $statusCounts['inactive'] ?></div>
+                            <div style="font-size: 0.75rem; color: var(--gray-500);">Inactive</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- River Section Summary -->
+                <div class="card" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
+                    <div class="card-header" style="padding: 1rem;">
+                        <h4 style="font-size: 0.875rem; color: var(--gray-600); margin: 0;">🌊 Devices by River Section</h4>
+                    </div>
+                    <div style="padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: white; border-radius: 8px; border-left: 3px solid #059669;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.25rem;">🏔️</span>
+                                <span style="font-size: 0.875rem; color: var(--gray-700);">Upstream</span>
+                            </div>
+                            <span style="font-size: 1.25rem; font-weight: 700; color: #059669;"><?= $sectionCounts['upstream'] ?></span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: white; border-radius: 8px; border-left: 3px solid #d97706;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.25rem;">🏞️</span>
+                                <span style="font-size: 0.875rem; color: var(--gray-700);">Midstream</span>
+                            </div>
+                            <span style="font-size: 1.25rem; font-weight: 700; color: #d97706;"><?= $sectionCounts['midstream'] ?></span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: white; border-radius: 8px; border-left: 3px solid #dc2626;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.25rem;">🌅</span>
+                                <span style="font-size: 0.875rem; color: var(--gray-700);">Downstream</span>
+                            </div>
+                            <span style="font-size: 1.25rem; font-weight: 700; color: #dc2626;"><?= $sectionCounts['downstream'] ?></span>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: white; border-radius: 8px; border-left: 3px solid #9ca3af;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.25rem;">❓</span>
+                                <span style="font-size: 0.875rem; color: var(--gray-700);">Unassigned</span>
+                            </div>
+                            <span style="font-size: 1.25rem; font-weight: 700; color: #9ca3af;"><?= $sectionCounts['unassigned'] ?></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Devices Table -->
             <div class="card">
                 <div class="card-header" style="flex-direction: column; align-items: stretch; gap: 1rem;">
