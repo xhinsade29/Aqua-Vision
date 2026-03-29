@@ -141,6 +141,36 @@ $readingStats = $conn->query("SELECT COUNT(*) as total_readings,
 FROM sensor_readings 
 WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL $hoursFilter HOUR)")->fetch_assoc();
 
+// ── API: ?action=fetch ────────────────────────────────────────────────────────
+if (($_GET['action'] ?? '') === 'fetch') {
+    error_reporting(0); ini_set('display_errors', 0);
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json'); header('Cache-Control: no-store');
+    
+    // Get fresh data
+    $freshTimeline = getActivityTimeline($conn, $hoursFilter);
+    $freshAlertStats = $conn->query("SELECT 
+        SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) as active_alerts,
+        SUM(CASE WHEN alert_type='critical' THEN 1 ELSE 0 END) as critical_alerts,
+        SUM(CASE WHEN alert_type='high' THEN 1 ELSE 0 END) as high_alerts,
+        SUM(CASE WHEN alert_type='low' THEN 1 ELSE 0 END) as low_alerts
+    FROM alerts")->fetch_assoc();
+    $freshReadingStats = $conn->query("SELECT COUNT(*) as total_readings,
+        COUNT(DISTINCT sensor_id) as active_sensors,
+        MAX(recorded_at) as last_reading
+    FROM sensor_readings 
+    WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL $hoursFilter HOUR)")->fetch_assoc();
+    
+    echo json_encode([
+        'ok' => true,
+        'timeline' => $freshTimeline,
+        'alert_stats' => $freshAlertStats,
+        'reading_stats' => $freshReadingStats,
+        'timestamp' => date('Y-m-d H:i:s')
+    ], JSON_NUMERIC_CHECK);
+    exit;
+}
+
 ?>
 <?php include '../../assets/navigation.php'; ?>
 <!DOCTYPE html>
@@ -533,8 +563,135 @@ WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL $hoursFilter HOUR)")->fetch_assoc(
     </div>
     
     <script>
-        // Auto-refresh every 5 minutes
-        setTimeout(() => window.location.reload(), 300000);
+        const SELF = 'activitylog.php';
+        const HOURS_FILTER = <?= $hoursFilter ?>;
+        
+        // ── Sync Engine ───────────────────────────────────────────────
+        let _syncTimer = null, _syncBusy = false;
+        
+        function startSync(ms) { 
+            stopSync(); 
+            syncNow(); 
+            _syncTimer = setInterval(syncNow, ms || 10000); 
+        }
+        
+        function stopSync() { 
+            if (_syncTimer) { clearInterval(_syncTimer); _syncTimer = null; } 
+        }
+        
+        async function syncNow() {
+            if (_syncBusy) return; 
+            _syncBusy = true;
+            try {
+                const res = await fetch(`${SELF}?action=fetch&hours=${HOURS_FILTER}&_=${Date.now()}`);
+                if (!res.ok) return;
+                const d = await res.json();
+                if (!d.ok) return;
+                _applySync(d);
+            } catch (_) {}
+            finally { _syncBusy = false; }
+        }
+        
+        function _applySync(d) {
+            // Update stats
+            if (d.reading_stats) {
+                document.querySelector('.stat-card.success h3').textContent = 
+                    parseInt(d.reading_stats.total_readings || 0).toLocaleString();
+            }
+            if (d.alert_stats) {
+                document.querySelector('.stat-card.warning h3').textContent = 
+                    d.alert_stats.active_alerts || 0;
+                document.querySelector('.stat-card.danger h3').textContent = 
+                    d.alert_stats.critical_alerts || 0;
+                document.querySelector('.stat-card:last-child h3').textContent = 
+                    d.alert_stats.high_alerts || 0;
+            }
+            
+            // Update timeline
+            if (d.timeline) {
+                updateTimeline(d.timeline);
+            }
+            
+            // Update event count
+            const eventCount = d.timeline ? d.timeline.length : 0;
+            document.querySelector('.timeline-header span').textContent = 
+                `${eventCount} events • Updated ${new Date().toLocaleTimeString()}`;
+        }
+        
+        function updateTimeline(timeline) {
+            const container = document.querySelector('.timeline-body');
+            if (!container) return;
+            
+            if (timeline.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>No activity recorded in the last ${HOURS_FILTER} hours</p>
+                    </div>`;
+                return;
+            }
+            
+            container.innerHTML = timeline.map(item => {
+                if (item.type === 'reading') {
+                    return `
+                        <div class="timeline-item">
+                            <div class="timeline-icon reading">📊</div>
+                            <div class="timeline-content">
+                                <div class="timeline-title">
+                                    Sensor Reading
+                                    <span class="timeline-badge info">Normal</span>
+                                </div>
+                                <div class="timeline-desc">${escapeHtml(item.message)}</div>
+                                <div class="timeline-meta">${formatDate(item.timestamp)}</div>
+                            </div>
+                        </div>`;
+                } else if (item.type === 'alert') {
+                    return `
+                        <div class="timeline-item">
+                            <div class="timeline-icon alert-${item.severity}">⚠️</div>
+                            <div class="timeline-content">
+                                <div class="timeline-title">
+                                    Alert: ${escapeHtml(item.device_name || 'Unknown')}
+                                    <span class="timeline-badge ${item.severity}">${capitalize(item.severity)}</span>
+                                    ${item.status === 'active' ? '<span class="timeline-badge critical">Active</span>' : ''}
+                                </div>
+                                <div class="timeline-desc">${escapeHtml(item.message)}</div>
+                                <div class="timeline-meta">
+                                    ${formatDate(item.timestamp)}
+                                    ${item.status === 'acknowledged' ? '• Acknowledged' : ''}
+                                    ${item.status === 'resolved' ? '• Resolved' : ''}
+                                </div>
+                            </div>
+                        </div>`;
+                }
+            }).join('');
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/&/g, '&amp;')
+                       .replace(/</g, '&lt;')
+                       .replace(/>/g, '&gt;')
+                       .replace(/"/g, '&quot;');
+        }
+        
+        function capitalize(str) {
+            if (!str) return '';
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+        
+        function formatDate(timestamp) {
+            const date = new Date(timestamp.replace(' ', 'T'));
+            return date.toLocaleString('en-US', {
+                month: 'short', day: 'numeric', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
+        }
+        
+        // Start syncing when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            startSync(10000); // Sync every 10 seconds
+        });
     </script>
 </body>
 </html>

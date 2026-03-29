@@ -10,6 +10,13 @@ require_once __DIR__ . '/../../database/config.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
+// Prevent browser caching to ensure fresh data fetch
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Cache-Control: post-check=0, pre-check=0', false);
+header('Pragma: no-cache');
+header('Expires: Sun, 01 Jan 2014 00:00:00 GMT');
+
 if (!isset($_SESSION['user_id'])) {
     header('Location: /login.php');
     exit;
@@ -45,6 +52,67 @@ if ($action === 'get_readings') {
     exit;
 }
 
+// Handle map sync API
+if ($action === 'map_sync') {
+    error_reporting(0); ini_set('display_errors', 0);
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json'); header('Cache-Control: no-store');
+    
+    // Get locations with device counts
+    $locRes = $conn->query("SELECT l.location_id, l.location_name, l.latitude, l.longitude, l.river_section,
+        COUNT(d.device_id) AS total_devices,
+        SUM(CASE WHEN d.status='active' THEN 1 ELSE 0 END) AS active_devices,
+        SUM(CASE WHEN d.status='maintenance' THEN 1 ELSE 0 END) AS maint_devices
+        FROM locations l
+        LEFT JOIN devices d ON d.location_id = l.location_id
+        GROUP BY l.location_id");
+    
+    $locations = [];
+    while ($r = $locRes->fetch_assoc()) {
+        $locations[] = [
+            'id' => (int)$r['location_id'],
+            'name' => $r['location_name'],
+            'lat' => (float)$r['latitude'],
+            'lng' => (float)$r['longitude'],
+            'section' => $r['river_section'],
+            'total' => (int)$r['total_devices'],
+            'active' => (int)$r['active_devices'],
+            'maint' => (int)$r['maint_devices']
+        ];
+    }
+    
+    // Get all devices with their status
+    $devRes = $conn->query("SELECT d.device_id, d.device_name, d.status, d.device_condition, d.last_active,
+        l.location_id, l.location_name, l.river_section, l.latitude, l.longitude
+        FROM devices d
+        LEFT JOIN locations l ON l.location_id = d.location_id
+        WHERE d.status = 'active'");
+    
+    $devices = [];
+    while ($r = $devRes->fetch_assoc()) {
+        $devices[] = [
+            'device_id' => (int)$r['device_id'],
+            'device_name' => $r['device_name'],
+            'status' => $r['status'],
+            'device_condition' => $r['device_condition'] ?? 'normal',
+            'last_active' => $r['last_active'],
+            'location_id' => $r['location_id'] ? (int)$r['location_id'] : null,
+            'location_name' => $r['location_name'],
+            'river_section' => $r['river_section'],
+            'lat' => $r['latitude'] ? (float)$r['latitude'] : null,
+            'lng' => $r['longitude'] ? (float)$r['longitude'] : null
+        ];
+    }
+    
+    echo json_encode([
+        'ok' => true,
+        'timestamp' => date('Y-m-d H:i:s'),
+        'locations' => $locations,
+        'devices' => $devices
+    ], JSON_NUMERIC_CHECK);
+    exit;
+}
+
 // Process form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     handleFormSubmission($conn, $_POST);
@@ -52,6 +120,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get data for current view
 $device = ($action === 'edit' && $id) ? getDeviceById($conn, $id) : null;
+$location = ($action === 'edit_location' && isset($_GET['loc_id'])) ? getLocationById($conn, (int)$_GET['loc_id']) : null;
+
+// Debug: Check database connection
+if (!$conn) {
+    die("Database connection failed");
+}
+
+// Debug: Check for devices directly
+$testRes = $conn->query("SELECT COUNT(*) as cnt FROM devices");
+$deviceCount = $testRes ? $testRes->fetch_assoc()['cnt'] : 0;
+
 $devices = ($action === 'list' || $action === 'edit') ? getAllDevices($conn) : [];
 $locations = ($action === 'list') ? getAllLocations($conn) : [];
 
@@ -1410,7 +1489,143 @@ include __DIR__ . '/../../assets/navigation.php';
                 </div>
             </div>
             
+        <?php elseif ($action === 'edit_location' && $location): ?>
+            <!-- Edit Location Form -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Edit Location: <?= htmlspecialchars($location['location_name']) ?></h3>
+                </div>
+                <div class="card-body" style="padding: 1.25rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                        <!-- Location Map -->
+                        <div>
+                            <div id="edit-location-map" style="height: 400px; border-radius: var(--radius); border: 1px solid var(--gray-200);"></div>
+                            <p style="font-size: 0.75rem; color: var(--gray-500); margin-top: 0.5rem;">
+                                💡 Click on the map or drag the marker to update location
+                            </p>
+                        </div>
+                        
+                        <!-- Location Form -->
+                        <form method="POST" action="">
+                            <input type="hidden" name="action" value="edit_location">
+                            <input type="hidden" name="location_id" value="<?= $location['location_id'] ?>">
+                            
+                            <div class="form-group">
+                                <label>Location Name *</label>
+                                <input type="text" name="location_name" value="<?= htmlspecialchars($location['location_name']) ?>" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>River Section</label>
+                                <select name="river_section" required>
+                                    <option value="upstream" <?= $location['river_section'] === 'upstream' ? 'selected' : '' ?>>Upstream</option>
+                                    <option value="midstream" <?= $location['river_section'] === 'midstream' ? 'selected' : '' ?>>Midstream</option>
+                                    <option value="downstream" <?= $location['river_section'] === 'downstream' ? 'selected' : '' ?>>Downstream</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Latitude</label>
+                                <input type="number" id="locLatitude" name="latitude" step="0.000001" value="<?= $location['latitude'] ?>" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Longitude</label>
+                                <input type="number" id="locLongitude" name="longitude" step="0.000001" value="<?= $location['longitude'] ?>" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Description</label>
+                                <textarea name="description" rows="3" style="width: 100%; padding: 0.5rem; border: 1px solid var(--gray-200); border-radius: var(--radius);"><?= htmlspecialchars($location['description'] ?? '') ?></textarea>
+                            </div>
+                            
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+                                <button type="submit" class="btn btn-primary">Save Location</button>
+                                <a href="?action=list" class="btn btn-secondary">Cancel</a>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <script>
+                        // Initialize map for location editing
+                        const locLat = <?= $location['latitude'] ?>;
+                        const locLng = <?= $location['longitude'] ?>;
+                        
+                        const locMap = L.map('edit-location-map').setView([locLat, locLng], 14);
+                        
+                        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                            attribution: '© OpenStreetMap contributors',
+                            subdomains: 'abcd',
+                            maxZoom: 19
+                        }).addTo(locMap);
+                        
+                        // Add river polyline
+                        const riverCoords = [
+                            [8.345958, 124.898607], [8.346955, 124.899036], [8.347603, 124.898081],
+                            [8.349471, 124.896461], [8.349216, 124.895474], [8.349535, 124.894755],
+                            [8.348909, 124.894058], [8.349881, 124.893209], [8.352050, 124.889584],
+                            [8.351096, 124.889497], [8.351978, 124.888415], [8.352369, 124.887056],
+                            [8.352210, 124.886676], [8.352643, 124.886427], [8.353468, 124.884863],
+                            [8.355492, 124.883376], [8.356292, 124.881332], [8.358270, 124.881140],
+                            [8.368532, 124.875713], [8.373977, 124.876690], [8.381657, 124.897203],
+                            [8.394810, 124.903483], [8.396343, 124.907500], [8.399906, 124.911121],
+                            [8.400757, 124.910773], [8.401407, 124.910581], [8.401636, 124.910868],
+                            [8.401774, 124.911007], [8.402125, 124.911168], [8.402489, 124.911218],
+                            [8.402853, 124.911196], [8.403020, 124.911119], [8.403792, 124.910506],
+                            [8.405310, 124.909972], [8.405901, 124.909983], [8.406337, 124.910087],
+                            [8.406533, 124.910179], [8.406700, 124.910291], [8.406745, 124.910385],
+                            [8.406713, 124.910512], [8.405924, 124.911388], [8.405818, 124.911576],
+                            [8.405829, 124.911689], [8.405924, 124.911801], [8.406275, 124.911984],
+                            [8.406715, 124.912414], [8.407049, 124.912661], [8.409034, 124.913466],
+                            [8.409793, 124.913708], [8.410064, 124.913713], [8.410472, 124.913676],
+                            [8.411629, 124.913198], [8.412245, 124.912800], [8.412515, 124.912462],
+                            [8.412632, 124.911962], [8.413237, 124.909739], [8.413179, 124.909497]
+                        ];
+                        
+                        L.polyline(riverCoords, {
+                            color: '#3b82f6',
+                            weight: 4,
+                            opacity: 0.85
+                        }).addTo(locMap);
+                        
+                        // Add draggable marker
+                        const locMarker = L.marker([locLat, locLng], { 
+                            draggable: true,
+                            icon: L.divIcon({
+                                html: `<div style="position: relative; width: 30px; height: 30px;">
+                                        <div style="position: absolute; inset: 0; border-radius: 50%; background: #1a56db; opacity: 0.2; animation: pulse 2s ease-out infinite"></div>
+                                        <div style="position: absolute; inset: 4px; border-radius: 50%; background: #1a56db; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.3); cursor: move;"></div>
+                                        <div style="position: absolute; top: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #1a56db;"></div>
+                                    </div>`,
+                                iconSize: [30, 30],
+                                iconAnchor: [15, 30],
+                                className: ''
+                            })
+                        }).addTo(locMap);
+                        
+                        // Update form when marker is dragged
+                        locMarker.on('dragend', function(e) {
+                            const pos = e.target.getLatLng();
+                            document.getElementById('locLatitude').value = pos.lat.toFixed(6);
+                            document.getElementById('locLongitude').value = pos.lng.toFixed(6);
+                        });
+                        
+                        // Update marker when map is clicked
+                        locMap.on('click', function(e) {
+                            locMarker.setLatLng(e.latlng);
+                            document.getElementById('locLatitude').value = e.latlng.lat.toFixed(6);
+                            document.getElementById('locLongitude').value = e.latlng.lng.toFixed(6);
+                        });
+                    </script>
+                </div>
+            </div>
+            
         <?php else: ?>
+            <!-- Debug info -->
+            <div style="background: #fef3c7; border: 1px solid #d97706; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                <strong>Debug Info:</strong> Total devices in database: <?= $deviceCount ?>, Devices loaded: <?= count($devices) ?>
+            </div>
+            
             <!-- Combined Status with Condition Summary -->
             <div class="card" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); margin-bottom: 1.5rem;">
                 <div class="card-header" style="padding: 1rem;">
@@ -2118,7 +2333,115 @@ include __DIR__ . '/../../assets/navigation.php';
                 // Initialize map when page loads
                 document.addEventListener('DOMContentLoaded', function() {
                     initializeDeviceMap();
+                    startMapSync(10000); // Start syncing every 10 seconds
                 });
+                
+                // ── Map Sync with Dashboard ───────────────────────────────
+                let _mapSyncTimer = null;
+                let _mapSyncBusy = false;
+                
+                function startMapSync(ms) {
+                    if (_mapSyncTimer) clearInterval(_mapSyncTimer);
+                    _mapSyncTimer = setInterval(syncMapNow, ms);
+                }
+                
+                function stopMapSync() {
+                    if (_mapSyncTimer) {
+                        clearInterval(_mapSyncTimer);
+                        _mapSyncTimer = null;
+                    }
+                }
+                
+                async function syncMapNow() {
+                    if (_mapSyncBusy || !deviceOverviewMap) return;
+                    _mapSyncBusy = true;
+                    
+                    try {
+                        const res = await fetch('devices.php?action=map_sync&_=' + Date.now());
+                        if (!res.ok) return;
+                        const d = await res.json();
+                        if (!d.ok) return;
+                        
+                        updateMapFromSync(d.devices, d.locations);
+                    } catch (e) {
+                        console.error('Map sync error:', e);
+                    } finally {
+                        _mapSyncBusy = false;
+                    }
+                }
+                
+                function updateMapFromSync(devices, locations) {
+                    if (!deviceOverviewMap) return;
+                    
+                    // Clear existing markers (keep the map tiles)
+                    deviceOverviewMap.eachLayer(layer => {
+                        if (layer instanceof L.CircleMarker || layer instanceof L.Popup) {
+                            deviceOverviewMap.removeLayer(layer);
+                        }
+                    });
+                    
+                    // Add updated markers
+                    const activeDevices = devices.filter(d => d.lat && d.lng);
+                    
+                    activeDevices.forEach(device => {
+                        const color = getDeviceStatusColor(device.status, device.device_condition);
+                        
+                        const marker = L.circleMarker([device.lat, device.lng], {
+                            radius: 10,
+                            fillColor: color,
+                            color: '#fff',
+                            weight: 2,
+                            fillOpacity: 0.9
+                        }).addTo(deviceOverviewMap);
+                        
+                        // Highlight selected device
+                        if (device.device_id === selectedDeviceId) {
+                            marker.setStyle({
+                                radius: 14,
+                                weight: 3,
+                                fillOpacity: 1.0
+                            });
+                        }
+                        
+                        const popupContent = `
+                            <div style="font-family: 'Inter', sans-serif; min-width: 200px;">
+                                <div style="font-weight: 600; margin-bottom: 8px;">${device.device_name}</div>
+                                <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">
+                                    Status: <span style="color: ${color}; font-weight: 500;">${device.status}</span>
+                                </div>
+                                ${device.device_condition && device.device_condition !== 'normal' ? `
+                                    <div style="font-size: 12px; color: #7c3aed; margin-bottom: 4px;">
+                                        ⚠️ Condition: ${device.device_condition}
+                                    </div>
+                                ` : ''}
+                                ${device.location_name ? `
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">
+                                        Location: ${device.location_name}
+                                    </div>
+                                ` : ''}
+                                ${device.river_section ? `
+                                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
+                                        ${device.river_section.charAt(0).toUpperCase() + device.river_section.slice(1)} Section
+                                    </div>
+                                ` : ''}
+                                <div style="font-size: 11px; font-family: monospace; color: #9ca3af; margin-bottom: 12px;">
+                                    ${device.lat.toFixed(5)}°N, ${device.lng.toFixed(5)}°E
+                                </div>
+                                <div style="display: flex; gap: 6px;">
+                                    <a href="?action=edit&id=${device.device_id}" 
+                                       style="flex: 1; text-align: center; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; text-decoration: none; font-size: 11px;">
+                                        Edit
+                                    </a>
+                                </div>
+                            </div>
+                        `;
+                        
+                        marker.bindPopup(popupContent);
+                        marker.on('click', function() {
+                            selectDevice(device.device_id);
+                        });
+                    });
+                }
             </script>
         <?php endif; ?>
     </div>
@@ -2139,6 +2462,8 @@ function handleFormSubmission($conn, $data) {
     try {
         if ($action === 'add' || $action === 'edit') {
             handleDeviceSubmission($conn, $data);
+        } elseif ($action === 'edit_location') {
+            handleLocationSubmission($conn, $data);
         } elseif ($action === 'delete') {
             handleDeviceDelete($conn, $data);
         }
@@ -2301,6 +2626,38 @@ function handleDeviceSubmission($conn, $data) {
 }
 
 /**
+ * Handle location edit
+ */
+function handleLocationSubmission($conn, $data) {
+    $locationId = (int)($data['location_id'] ?? 0);
+    $locationName = trim($data['location_name'] ?? '');
+    $riverSection = $data['river_section'] ?? 'upstream';
+    $latitude = isset($data['latitude']) ? floatval($data['latitude']) : null;
+    $longitude = isset($data['longitude']) ? floatval($data['longitude']) : null;
+    $description = trim($data['description'] ?? '');
+    
+    if ($locationId <= 0) {
+        throw new Exception('Invalid location ID');
+    }
+    
+    if (empty($locationName)) {
+        throw new Exception('Location name is required');
+    }
+    
+    $stmt = $conn->prepare("UPDATE locations SET location_name = ?, river_section = ?, latitude = ?, longitude = ?, description = ? WHERE location_id = ?");
+    $stmt->bind_param("ssddsi", $locationName, $riverSection, $latitude, $longitude, $description, $locationId);
+    
+    if ($stmt->execute()) {
+        $_SESSION['success'] = 'Location updated successfully';
+    } else {
+        throw new Exception('Failed to update location: ' . $conn->error);
+    }
+    
+    header('Location: ' . $_SERVER['PHP_SELF']);
+    exit;
+}
+
+/**
  * Handle device deletion
  */
 function handleDeviceDelete($conn, $data) {
@@ -2378,6 +2735,16 @@ function getDeviceById($conn, $id) {
                             FROM devices d 
                             LEFT JOIN locations l ON l.location_id = d.location_id 
                             WHERE d.device_id = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_assoc();
+}
+
+/**
+ * Get location by ID
+ */
+function getLocationById($conn, $id) {
+    $stmt = $conn->prepare("SELECT l.* FROM locations l WHERE l.location_id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     return $stmt->get_result()->fetch_assoc();

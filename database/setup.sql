@@ -18,11 +18,12 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- Locations table
+-- Locations table (represents stream section boundaries - start/end points)
 CREATE TABLE IF NOT EXISTS locations (
     location_id INT AUTO_INCREMENT PRIMARY KEY,
     location_name VARCHAR(100) NOT NULL,
     river_section ENUM('upstream', 'midstream', 'downstream') NOT NULL,
+    location_type ENUM('start', 'end') NOT NULL DEFAULT 'start',
     latitude DECIMAL(10, 8) NOT NULL,
     longitude DECIMAL(11, 8) NOT NULL,
     description TEXT,
@@ -161,25 +162,30 @@ CREATE TABLE IF NOT EXISTS system_settings (
     FOREIGN KEY (updated_by) REFERENCES users(user_id) ON DELETE SET NULL
 );
 
--- Insert sample locations
-INSERT IGNORE INTO locations (location_name, river_section, latitude, longitude, description) VALUES
-('Upstream Station 1', 'upstream', 8.1234, 124.5678, 'Upper watershed monitoring point'),
-('Upstream Station 2', 'upstream', 8.1245, 124.5689, 'Secondary upstream location'),
-('Midstream Station 1', 'midstream', 8.1345, 124.5789, 'Central monitoring station'),
-('Midstream Station 2', 'midstream', 8.1356, 124.5790, 'Mid-river measurement point'),
-('Downstream Station 1', 'downstream', 8.1456, 124.5890, 'Lower watershed station'),
-('Downstream Station 2', 'downstream', 8.1467, 124.5901, 'Exit point monitoring');
+-- Insert river section boundary locations (start and end points for each stream section)
+INSERT IGNORE INTO locations (location_name, river_section, location_type, latitude, longitude, description) VALUES
+-- Upstream Section (Upper watershed entry point)
+('Upstream Start', 'upstream', 'start', 8.345958, 124.898607, 'Upper watershed entry point - Mangima River origin'),
+('Upstream End', 'upstream', 'end', 8.369297, 124.876785, 'Upper watershed exit point - transition to midstream'),
 
--- Insert sample devices
+-- Midstream Section (Central monitoring area)
+('Midstream Start', 'midstream', 'start', 8.369297, 124.876785, 'Central monitoring entry - convergence from upstream'),
+('Midstream End', 'midstream', 'end', 8.394873, 124.903068, 'Central monitoring exit - transition to downstream'),
+
+-- Downstream Section (Lower watershed exit point)
+('Downstream Start', 'downstream', 'start', 8.394873, 124.903068, 'Lower watershed entry - river widening point'),
+('Downstream End', 'downstream', 'end', 8.413179, 124.909497, 'Lower watershed exit - river outlet/mouth');
+
+-- Insert sample devices (assigned to river section boundaries)
 INSERT IGNORE INTO devices (device_name, device_type, location_id, status, installation_date) VALUES
-('WQ-Station-01', 'water_quality_station', 1, 'active', '2026-03-01'),
-('WQ-Station-02', 'water_quality_station', 2, 'active', '2026-03-02'),
-('WQ-Station-03', 'water_quality_station', 3, 'active', '2026-03-03'),
-('WQ-Station-04', 'water_quality_station', 4, 'active', '2026-03-04'),
-('WQ-Station-05', 'water_quality_station', 5, 'active', '2026-03-05'),
-('WQ-Station-06', 'water_quality_station', 6, 'active', '2026-03-06'),
-('Weather-01', 'weather_station', 3, 'active', '2026-03-10'),
-('Flow-Meter-01', 'flow_meter', 4, 'active', '2026-03-12');
+('WQ-Upstream-Start', 'water_quality_station', 1, 'active', '2026-03-01'),
+('WQ-Upstream-End', 'water_quality_station', 2, 'active', '2026-03-02'),
+('WQ-Midstream-Start', 'water_quality_station', 3, 'active', '2026-03-03'),
+('WQ-Midstream-End', 'water_quality_station', 4, 'active', '2026-03-04'),
+('WQ-Downstream-Start', 'water_quality_station', 5, 'active', '2026-03-05'),
+('WQ-Downstream-End', 'water_quality_station', 6, 'active', '2026-03-06'),
+('Weather-Central', 'weather_station', 3, 'active', '2026-03-10'),
+('Flow-Meter-Mid', 'flow_meter', 4, 'active', '2026-03-12');
 
 -- Insert sensors for water quality stations (6 sensors per station)
 INSERT IGNORE INTO sensors (device_id, sensor_type, unit, min_threshold, max_threshold) VALUES

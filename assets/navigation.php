@@ -391,7 +391,7 @@ $logoSrc = $assetBase . '/logo.png';
         </svg>
       </div>
       <div class="av-nav-label-wrap">
-        <div class="av-nav-label">History</div>
+        <div class="av-nav-label">Activity Logs</div>
         <div class="av-nav-sublabel">Trends &amp; past data</div>
       </div>
     </a>

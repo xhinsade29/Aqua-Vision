@@ -49,10 +49,10 @@ if (($_GET['action'] ?? '') === 'simulate' && $_SERVER['REQUEST_METHOD'] === 'PO
     $wl   = isset($body['water_level'])      ? (float)$body['water_level']     : null;
     $sed  = isset($body['sediments'])        ? (float)$body['sediments']       : null;
     if ($did <= 0) { echo json_encode(['error'=>'Invalid device_id']); exit; }
-    $chk = $conn->prepare("SELECT d.device_id, d.device_name, l.river_section FROM devices d LEFT JOIN locations l ON l.location_id = d.location_id WHERE d.device_id=? AND d.status='active'");
+    $chk = $conn->prepare("SELECT d.device_id, d.device_name, l.river_section FROM devices d LEFT JOIN locations l ON l.location_id = d.location_id WHERE d.device_id=?");
     $chk->bind_param('i', $did); $chk->execute();
     $dev = $chk->get_result()->fetch_assoc(); $chk->close();
-    if (!$dev) { echo json_encode(['error'=>"Device $did not found or inactive"]); exit; }
+    if (!$dev) { echo json_encode(['error'=>"Device $did not found"]); exit; }
 
     // Insert via sensor_readings table
     $alertsCreated = [];
@@ -69,10 +69,20 @@ if (($_GET['action'] ?? '') === 'simulate' && $_SERVER['REQUEST_METHOD'] === 'PO
     $lastRid = 0;
     foreach ($sensorMap as $stype => [$v, $mn, $mx, $lbl, $unit]) {
         if ($v === null) continue;
-        // Get sensor_id for this device+type
+        // Get or create sensor_id for this device+type
         $sRes = $conn->query("SELECT sensor_id FROM sensors WHERE device_id=$did AND sensor_type='" . $conn->real_escape_string($stype) . "' LIMIT 1");
-        if (!$sRes || $sRes->num_rows === 0) continue;
-        $sid = (int)$sRes->fetch_assoc()['sensor_id'];
+        if (!$sRes) continue;
+        
+        if ($sRes->num_rows === 0) {
+            // Auto-create sensor if it doesn't exist
+            $insSensor = $conn->prepare("INSERT INTO sensors (device_id, sensor_type, unit, min_threshold, max_threshold) VALUES (?, ?, ?, ?, ?)");
+            $insSensor->bind_param('issdd', $did, $stype, $unit, $mn, $mx);
+            if (!$insSensor->execute()) { $insSensor->close(); continue; }
+            $sid = $conn->insert_id;
+            $insSensor->close();
+        } else {
+            $sid = (int)$sRes->fetch_assoc()['sensor_id'];
+        }
 
         $ins = $conn->prepare("INSERT INTO sensor_readings (sensor_id, value, recorded_at) VALUES (?, ?, NOW())");
         $ins->bind_param('id', $sid, $v);
@@ -143,7 +153,7 @@ function _build_full_fetch(mysqli $conn): array {
     $devCounts = $dcRes->fetch_assoc();
     $alertCount = (int)$conn->query("SELECT COUNT(*) AS cnt FROM alerts WHERE status='active'")->fetch_assoc()['cnt'];
 
-    $dRes = $conn->query("SELECT d.device_id,d.device_name,d.status,d.last_active,l.location_name,l.river_section FROM devices d LEFT JOIN locations l ON l.location_id=d.location_id WHERE d.status='active' AND d.location_id IS NOT NULL ORDER BY l.river_section,d.device_name");
+    $dRes = $conn->query("SELECT d.device_id,d.device_name,d.status,d.last_active,l.location_name,l.river_section FROM devices d LEFT JOIN locations l ON l.location_id=d.location_id WHERE d.status='active' ORDER BY l.river_section,d.device_name");
     $devs = [];
     while ($r = $dRes->fetch_assoc()) $devs[] = $r;
 
@@ -256,9 +266,29 @@ $alertsRes = $conn->query("SELECT a.alert_id,a.alert_type,a.message,a.created_at
 $alerts = [];
 if ($alertsRes) while ($r = $alertsRes->fetch_assoc()) $alerts[] = $r;
 
-$devicesRes = $conn->query("SELECT d.device_id,d.device_name,d.status,d.last_active,l.location_name,l.river_section,l.latitude,l.longitude FROM devices d LEFT JOIN locations l ON l.location_id=d.location_id WHERE d.status='active' AND d.location_id IS NOT NULL ORDER BY l.river_section,d.device_name");
+$devicesRes = $conn->query("SELECT d.device_id,d.device_name,d.status,d.last_active,l.location_name,l.river_section,l.latitude,l.longitude,l.location_id FROM devices d LEFT JOIN locations l ON l.location_id=d.location_id WHERE d.status='active' ORDER BY l.river_section,d.device_name");
 $devices = [];
-if ($devicesRes) while ($r = $devicesRes->fetch_assoc()) $devices[] = $r;
+$mapLocations = [];
+$locationDevices = [];
+if ($devicesRes) {
+    while ($r = $devicesRes->fetch_assoc()) {
+        $devices[] = $r;
+        // Build map locations from device data
+        if ($r['location_id'] && !isset($locationDevices[$r['location_id']])) {
+            $locationDevices[$r['location_id']] = [];
+            $mapLocations[] = [
+                'location_id' => $r['location_id'],
+                'location_name' => $r['location_name'],
+                'latitude' => $r['latitude'],
+                'longitude' => $r['longitude'],
+                'river_section' => $r['river_section']
+            ];
+        }
+        if ($r['location_id']) {
+            $locationDevices[$r['location_id']][] = $r;
+        }
+    }
+}
 
 $deviceReadings = [];
 foreach ($devices as $dev) {
@@ -278,18 +308,10 @@ $maintRes = $conn->query("SELECT ml.maintenance_type,ml.notes,ml.performed_at,d.
 $maints = [];
 if ($maintRes) while ($r = $maintRes->fetch_assoc()) $maints[] = $r;
 
-$logsRes = $conn->query("SELECT sr.recorded_at,d.device_id,d.device_name,l.location_name,l.river_section,s.sensor_type,s.unit,s.min_threshold,s.max_threshold,sr.value FROM sensor_readings sr JOIN sensors s ON s.sensor_id=sr.sensor_id JOIN devices d ON d.device_id=s.device_id JOIN locations l ON l.location_id=d.location_id ORDER BY sr.recorded_at DESC LIMIT 60");
+// Fetch logs for sensor data logs section
+$logsRes = $conn->query("SELECT sr.recorded_at,d.device_id,d.device_name,l.location_name,l.river_section,s.sensor_type,s.unit,s.min_threshold,s.max_threshold,sr.value FROM sensor_readings sr JOIN sensors s ON s.sensor_id=sr.sensor_id JOIN devices d ON d.device_id=s.device_id JOIN locations l ON l.location_id=d.device_id ORDER BY sr.recorded_at DESC LIMIT 60");
 $logs = [];
-while ($r = $logsRes->fetch_assoc()) $logs[] = $r;
-
-$locRes = $conn->query("SELECT l.location_id,l.location_name,l.latitude,l.longitude,l.river_section,COUNT(d.device_id) AS total_devices,SUM(d.status='active') AS active_devices,SUM(d.status='maintenance') AS maint_devices,MIN(d.device_id) AS device_id FROM locations l LEFT JOIN devices d ON d.location_id=l.location_id GROUP BY l.location_id ORDER BY l.river_section");
-$mapLocations = []; $locationDevices = [];
-while ($r = $locRes->fetch_assoc()) {
-    $mapLocations[] = $r; $locId = (int)$r['location_id'];
-    $dRes = $conn->query("SELECT device_id,device_name,status FROM devices WHERE location_id=$locId ORDER BY device_name");
-    $dd = []; while ($d = $dRes->fetch_assoc()) $dd[] = $d;
-    $locationDevices[$locId] = $dd;
-}
+if ($logsRes) while ($r = $logsRes->fetch_assoc()) $logs[] = $r;
 
 $chartData = ['temperature'=>trend24($conn,'temperature'),'pH'=>trend24($conn,'ph_level'),'turbidity'=>trend24($conn,'turbidity'),'dissolved_oxygen'=>trend24($conn,'dissolved_oxygen'),'water_level'=>trend24($conn,'water_level'),'sediments'=>trend24($conn,'sediments')];
 $allChartData = [];
@@ -564,7 +586,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
   <div class="card">
     <div class="card-head">
       <div class="card-head-l">
-        <span class="card-title">Monitoring Locations — Bukidnon</span>
+        <span class="card-title">Monitoring Locations — Active Devices</span>
         <span id="simStatus" class="tag tag-mute">● Stopped</span>
       </div>
       <div class="card-head-r">
@@ -574,12 +596,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
           <option value="30000">30 s</option>
           <option value="60000">1 min</option>
         </select>
-        <select id="simMode" class="sel">
-          <option value="normal">Normal</option>
-          <option value="flood">Flood</option>
-          <option value="pollution">Pollution</option>
-          <option value="drought">Drought</option>
-        </select>
+        <span class="tag tag-info" style="font-size:11px">Mixed Modes</span>
         <button id="simStartBtn" onclick="startSim()"
           style="height:30px;padding:0 14px;border-radius:var(--r);font:600 11px var(--sans);cursor:pointer;border:none;background:#7c3aed;color:#fff">
           ▶ Start
@@ -598,7 +615,6 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
           <div class="leg"><span class="leg-dot" style="background:#059669"></span>Upstream</div>
           <div class="leg"><span class="leg-dot" style="background:#d97706"></span>Midstream</div>
           <div class="leg"><span class="leg-dot" style="background:#dc2626"></span>Downstream</div>
-          <div class="leg"><span class="leg-dot" style="background:#9ca3af"></span>Offline</div>
         </div>
       </div>
       <div style="display:flex;flex-direction:column;padding:12px">
@@ -759,8 +775,8 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
       $sc = $sectionConditions[$secKey] ?? [];
       $outOfRange = 0;
       foreach ($wcSensors as $ws) { $v=$sc[$ws['key']]??null; if($v!==null&&($v<$ws['min']||$v>$ws['max'])) $outOfRange++; }
-      $sStatus = $outOfRange===0?'Normal':($outOfRange<=1?'Moderate':'Critical');
-      $sTag = $outOfRange===0?'tag-good':($outOfRange<=1?'tag-warn':'tag-crit');
+      $sStatus = ($outOfRange===0) ? 'Normal' : (($outOfRange<=1) ? 'Moderate' : 'Critical');
+      $sTag = ($outOfRange===0) ? 'tag-good' : (($outOfRange<=1) ? 'tag-warn' : 'tag-crit');
     ?>
     <div class="wc-section">
       <div class="wc-head" style="background:<?= $sm['bg'] ?>">
@@ -774,7 +790,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
         <?php foreach ($wcSensors as $ws):
           $v = $sc[$ws['key']] ?? null;
           $good = $v!==null ? ($v>=$ws['min']&&$v<=$ws['max']) : null;
-          $vc = $good===true?'#059669':($good===false?'#d97706':'var(--ink4)');
+          $vc = ($good===true) ? '#059669' : (($good===false) ? '#d97706' : 'var(--ink4)');
         ?>
         <div class="wc-row">
           <div class="wc-label"><?= $ws['icon'] ?> <?= $ws['label'] ?></div>
@@ -952,7 +968,7 @@ const hours = Array.from({length:24},(_,i)=>{
   const h=(new Date().getHours()-23+i+24)%24;
   return String(h).padStart(2,'0')+':00';
 });
-const dbData = <?= json_encode($chartData, JSON_NUMERIC_CHECK) ?>;
+let dbData = <?= json_encode($chartData, JSON_NUMERIC_CHECK) ?>;
 const allChartData = <?= json_encode($allChartData ?? [], JSON_NUMERIC_CHECK) ?>;
 
 const CHART_DS = [
@@ -996,7 +1012,11 @@ const chart = new Chart(document.getElementById('trendChart').getContext('2d'), 
 function updateChart() {
   const deviceId = document.getElementById('chartDeviceId').value;
   if (!deviceId) {
-    CHART_DS.forEach((d, i) => { chart.data.datasets[i].data = dbData[d.key] || Array(24).fill(null); });
+    // Use latest sync data instead of stale dbData
+    const latestData = chart?.data?.datasets ? 
+      Object.fromEntries(CHART_DS.map((d, i) => [d.key, chart.data.datasets[i].data])) : 
+      dbData;
+    CHART_DS.forEach((d, i) => { chart.data.datasets[i].data = latestData[d.key] || dbData[d.key] || Array(24).fill(null); });
   } else {
     const dd = allChartData[deviceId] || {};
     CHART_DS.forEach((d, i) => { chart.data.datasets[i].data = dd[d.key] || Array(24).fill(null); });
@@ -1172,11 +1192,11 @@ function updateWaterConditions(sectionConditions) {
   if (!grid) return;
   let html = '';
   for (const [secKey, sm] of Object.entries(SEC_META)) {
-    const sc = sectionConditions[secKey] || {};
+    const sc = sectionConditions[secKey] || [];
     let outOfRange = 0;
     WC_SENSORS.forEach(ws => { const v=sc[ws.key]; if(v!==null&&v!==undefined&&(v<ws.min||v>ws.max)) outOfRange++; });
-    const sStatus = outOfRange===0?'Normal':outOfRange<=1?'Moderate':'Critical';
-    const sTag = outOfRange===0?'tag-good':outOfRange<=1?'tag-warn':'tag-crit';
+    const sStatus = (outOfRange===0) ? 'Normal' : ((outOfRange<=1) ? 'Moderate' : 'Critical');
+    const sTag = (outOfRange===0) ? 'tag-good' : ((outOfRange<=1) ? 'tag-warn' : 'tag-crit');
     let rows = '';
     WC_SENSORS.forEach(ws => {
       const v = sc[ws.key];
@@ -1317,7 +1337,21 @@ const MODES = {
   pollution: {temperature:{base:29,drift:1,min:27,max:32},ph_level:{base:5.8,drift:0.4,min:5.0,max:6.8},turbidity:{base:80,drift:20,min:40,max:130},dissolved_oxygen:{base:3.5,drift:0.5,min:2.5,max:4.5},water_level:{base:1.4,drift:0.1,min:1.1,max:1.6},sediments:{base:200,drift:60,min:100,max:400}},
   drought:   {temperature:{base:33,drift:1.5,min:30,max:37},ph_level:{base:8.0,drift:0.3,min:7.5,max:8.7},turbidity:{base:8,drift:3,min:3,max:15},dissolved_oxygen:{base:9.0,drift:0.5,min:8.0,max:10},water_level:{base:0.4,drift:0.05,min:0.3,max:0.6},sediments:{base:15,drift:5,min:5,max:30}},
 };
-const _ds={}; let _st=null, _sc=0, _sac=0, _di=0;
+const SIM_DEVICE_MODES = {};
+const MODE_NAMES = ['normal', 'flood', 'pollution', 'drought'];
+let _ds = {}, _di = 0, _st = null, _sc = 0, _sac = 0; // Simulation variables
+
+function _assignDeviceModes() {
+  // Distribute modes evenly across all devices (round-robin)
+  SIM_DEVICES.forEach((id, idx) => {
+    const modeIndex = idx % MODE_NAMES.length;
+    SIM_DEVICE_MODES[id] = MODE_NAMES[modeIndex];
+  });
+}
+
+function _getDeviceMode(id) {
+  return SIM_DEVICE_MODES[id] || 'normal';
+}
 
 function _initDs(id,mode){ const m=MODES[mode]||MODES.normal; _ds[id]={}; for(const[k,cfg]of Object.entries(m)) _ds[id][k]=+(cfg.base+(Math.random()-.5)*cfg.drift).toFixed(2); }
 function _next(id,key,mode){ const cfg=(MODES[mode]||MODES.normal)[key]; if(!cfg) return null; if(!_ds[id])_initDs(id,mode); let v=_ds[id][key]+(Math.random()-.5)*cfg.drift*.35; v=Math.max(cfg.min,Math.min(cfg.max,v)); _ds[id][key]=v; return+v.toFixed(2); }
@@ -1335,55 +1369,80 @@ function _slog(msg,color){
 }
 
 async function _sendTick() {
-  const mode=document.getElementById('simMode').value;
   const ids=SIM_DEVICES;
   if(!ids.length){_slog('No active devices.','var(--warn)');return;}
-  const id=ids[_di%ids.length]; _di++;
-  const p={
-    device_id:id,
-    temperature:_next(id,'temperature',mode),
-    ph_level:_next(id,'ph_level',mode),
-    turbidity:_next(id,'turbidity',mode),
-    dissolved_oxygen:_next(id,'dissolved_oxygen',mode),
-    water_level:_next(id,'water_level',mode),
-    sediments:_next(id,'sediments',mode),
-  };
-  try {
-    const res=await fetch(`${SELF}?action=simulate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
-    const data=await res.json();
-    if(!res.ok||data.error){_slog(`ERROR: ${data.error||res.status}`,'var(--crit)');return;}
-    _sc++;
-    document.getElementById('simCount').textContent=_sc;
-    document.getElementById('simLastTs').textContent=new Date().toLocaleTimeString('en-PH',{hour12:false});
-    document.getElementById('simLastDevice').textContent=`${data.device_name}\n${data.river_section||''}`;
-
-    if(data.alerts_created&&data.alerts_created.length>0){
-      _sac+=data.alerts_created.length;
-      document.getElementById('simAlerts').textContent=_sac;
-      data.alerts_created.forEach(a=>_slog(`⚠ ALERT [${a.type.toUpperCase()}] ${a.message}`,'var(--warn)'));
+  
+  // Send to ALL devices simultaneously
+  const promises = ids.map(async (id) => {
+    const mode=_getDeviceMode(id);
+    const p={
+      device_id:id,
+      temperature:_next(id,'temperature',mode),
+      ph_level:_next(id,'ph_level',mode),
+      turbidity:_next(id,'turbidity',mode),
+      dissolved_oxygen:_next(id,'dissolved_oxygen',mode),
+      water_level:_next(id,'water_level',mode),
+      sediments:_next(id,'sediments',mode),
+    };
+    
+    try {
+      const res=await fetch(`${SELF}?action=simulate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
+      const data=await res.json();
+      if(!res.ok||data.error){
+        _slog(`ERROR Device ${id}: ${data.error||res.status}`,'var(--crit)');
+        return null;
+      }
+      
+      _sc++;
+      if(data.alerts_created&&data.alerts_created.length>0){
+        _sac+=data.alerts_created.length;
+        data.alerts_created.forEach(a=>_slog(`⚠ ALERT [${a.type.toUpperCase()}] ${a.message}`,'var(--warn)'));
+      }
+      _slog(`✓ #${data.reading_id} ${data.device_name} [${mode.toUpperCase()}] — T:${p.temperature} pH:${p.ph_level} Tu:${p.turbidity} DO:${p.dissolved_oxygen} Lv:${p.water_level} Sed:${p.sediments}`,'var(--good)');
+      
+      return data;
+    } catch(err){
+      _slog(`Fetch error Device ${id}: ${err.message}`,'var(--crit)');
+      return null;
     }
-    _slog(`✓ #${data.reading_id} ${data.device_name} — T:${p.temperature} pH:${p.ph_level} Tu:${p.turbidity} DO:${p.dissolved_oxygen} Lv:${p.water_level} Sed:${p.sediments}`,'var(--good)');
-
-    // Use the sync data embedded in the simulate response to update everything immediately
-    if(data.sync && data.sync.ok) {
-      _applySync(data.sync);
+  });
+  
+  // Wait for all devices to complete
+  const results = await Promise.all(promises);
+  
+  // Update UI counters
+  document.getElementById('simCount').textContent=_sc;
+  document.getElementById('simLastTs').textContent=new Date().toLocaleTimeString('en-PH',{hour12:false});
+  document.getElementById('simAlerts').textContent=_sac;
+  
+  // Get last successful result for device display
+  const lastSuccess = results.filter(r=>r&&r.success).pop();
+  if(lastSuccess){
+    document.getElementById('simLastDevice').textContent=`${lastSuccess.device_name}\n${lastSuccess.river_section||''}`;
+    
+    // Sync dashboard with last response
+    if(lastSuccess.sync && lastSuccess.sync.ok) {
+      _applySync(lastSuccess.sync);
     }
-  } catch(err){_slog(`Fetch error: ${err.message}`,'var(--crit)');}
+  }
 }
 
 function startSim(){
   const ms=parseInt(document.getElementById('simInterval').value);
-  const mode=document.getElementById('simMode').value;
+  
+  // Assign different modes to each device
+  _assignDeviceModes();
   
   // If already running, stop first then restart with new settings
   if(_st) {
     clearInterval(_st); _st=null;
-    _slog(`↻ Restarting — mode:${mode} · interval:${ms/1000}s`,'#7c3aed');
+    _slog(`↻ Restarting — Mixed Modes · interval:${ms/1000}s`,'#7c3aed');
   } else {
-    _slog(` Started — mode:${mode} · interval:${ms/1000}s · devices:[${SIM_DEVICES.join(',')}]`,'#7c3aed');
+    const modeList=SIM_DEVICES.map(id=>`${id}:${SIM_DEVICE_MODES[id]}`).join(', ');
+    _slog(` Started — Mixed Modes [${modeList}] · interval:${ms/1000}s`,'#7c3aed');
   }
   
-  SIM_DEVICES.forEach(id=>_initDs(id,mode)); _di=0;
+  SIM_DEVICES.forEach(id=>_initDs(id,_getDeviceMode(id))); _di=0;
   _st=setInterval(_sendTick,ms);
   document.getElementById('simStatus').textContent=' Running';
   document.getElementById('simStatus').className='tag tag-good';
@@ -1532,8 +1591,8 @@ const _mapMk={};
   const sL={upstream:'Upstream',midstream:'Midstream',downstream:'Downstream'};
   locs.forEach(loc=>{
     const color=sC[loc.section]||'#1a56db';
-    const devs=locationDevices[loc.id]||[];
-    const dHtml=devs.length>0?`<div style="margin:8px 0;padding-top:8px;border-top:1px solid #f0f0f0"><div style="font-size:10px;font-weight:600;color:#0d1117;margin-bottom:4px;letter-spacing:.04em;text-transform:uppercase">Devices</div>${devs.map(d=>{const c=d.status==='active'?'#059669':d.status==='maintenance'?'#3b82f6':'#9ca3af';return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-radius:4px;background:#f9fafb;margin-bottom:2px"><span style="font-size:11px;color:#0d1117;display:flex;align-items:center;gap:5px"><span style="width:5px;height:5px;border-radius:50%;background:${c};display:inline-block"></span>${d.device_name}</span><span style="font-size:10px;color:${c};font-weight:600">${d.status==='active'?'Active':d.status==='maintenance'?'Maint.':'Offline'}</span></div>`}).join('')}</div>`:`<div style="margin:8px 0;font-size:11px;color:#9ca3af;padding-top:8px;border-top:1px solid #f0f0f0">No devices assigned</div>`;
+    const devs=(locationDevices[loc.id]||[]).filter(d=>d.status==='active');
+    const dHtml=devs.length>0?`<div style="margin:8px 0;padding-top:8px;border-top:1px solid #f0f0f0"><div style="font-size:10px;font-weight:600;color:#0d1117;margin-bottom:4px;letter-spacing:.04em;text-transform:uppercase">Active Devices</div>${devs.map(d=>{const c='#059669';return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-radius:4px;background:#f9fafb;margin-bottom:2px"><span style="font-size:11px;color:#0d1117;display:flex;align-items:center;gap:5px"><span style="width:5px;height:5px;border-radius:50%;background:${c};display:inline-block"></span>${d.device_name}</span><span style="font-size:10px;color:${c};font-weight:600">Active</span></div>`}).join('')}</div>`:`<div style="margin:8px 0;font-size:11px;color:#9ca3af;padding-top:8px;border-top:1px solid #f0f0f0">No active devices</div>`;
     const marker=L.circleMarker([loc.lat,loc.lng],{radius:12,fillColor:color,color:'#fff',weight:2.5,fillOpacity:.95}).addTo(avMap);
     _mapMk[loc.id]=marker;
     marker.bindPopup(`<div style="font-family:'Instrument Sans',sans-serif;min-width:210px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:8px;height:8px;border-radius:50%;background:${color}"></div><div style="font-size:13px;font-weight:600;color:#0d1117">${sL[loc.section]||loc.section}</div></div><div style="font-size:11px;color:#3d4a5c;margin-bottom:4px">${loc.name}</div>${dHtml}<div style="display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0"><button onclick="event.stopPropagation();window.location.href='devices.php?action=edit_location&loc_id=${loc.id}'" style="flex:1;padding:5px;font-size:11px;border:1px solid #1a56db;background:#eff4ff;color:#1a56db;border-radius:5px;cursor:pointer;font-family:inherit">Edit</button><button onclick="event.stopPropagation();if(confirm('Delete ${loc.name}?'))window.location.href='devices.php?action=delete_location&loc_id=${loc.id}'" style="flex:1;padding:5px;font-size:11px;border:1px solid #dc2626;background:#fee2e2;color:#dc2626;border-radius:5px;cursor:pointer;font-family:inherit">Delete</button></div><div style="font-size:10px;color:#8897aa;margin-top:6px;font-family:'JetBrains Mono',monospace;text-align:center">${loc.lat.toFixed(5)}°N · ${loc.lng.toFixed(5)}°E</div></div>`,{maxWidth:250});
@@ -1647,8 +1706,13 @@ function updateConditionPieChart() {
     const sensors = ['temperature', 'ph_level', 'turbidity', 'dissolved_oxygen', 'water_level', 'sediments'];
     let outOfRange = 0, totalSensors = 0;
     
+    // Use fresh data from chart if available
+    const freshData = chart?.data?.datasets ? 
+      Object.fromEntries(CHART_DS.map((d, i) => [d.key, chart.data.datasets[i].data])) : 
+      dbData;
+    
     sensors.forEach(sensor => {
-      const val = dbData[sensor === 'ph_level' ? 'pH' : sensor]?.[23];
+      const val = freshData[sensor === 'ph_level' ? 'pH' : sensor]?.[23] ?? dbData[sensor === 'ph_level' ? 'pH' : sensor]?.[23];
       if (val !== null && val !== undefined) {
         totalSensors++;
         const limits = PIE_SENSOR_LIMITS[sensor];
@@ -1698,12 +1762,16 @@ function updateOverallSensorStatus() {
   
   if (!deviceId) {
     // All devices - use latest chart data (hour 23 = most recent)
-    tempVal = dbData.temperature?.[23] ?? null;
-    phVal = dbData.pH?.[23] ?? null;
-    turbVal = dbData.turbidity?.[23] ?? null;
-    doVal = dbData.dissolved_oxygen?.[23] ?? null;
-    wlVal = dbData.water_level?.[23] ?? null;
-    sedVal = dbData.sediments?.[23] ?? null;
+    // Use fresh data from chart if available, fallback to dbData
+    const freshData = chart?.data?.datasets ? 
+      Object.fromEntries(CHART_DS.map((d, i) => [d.key, chart.data.datasets[i].data])) : 
+      dbData;
+    tempVal = freshData.temperature?.[23] ?? dbData.temperature?.[23] ?? null;
+    phVal = freshData.pH?.[23] ?? dbData.pH?.[23] ?? null;
+    turbVal = freshData.turbidity?.[23] ?? dbData.turbidity?.[23] ?? null;
+    doVal = freshData.dissolved_oxygen?.[23] ?? dbData.dissolved_oxygen?.[23] ?? null;
+    wlVal = freshData.water_level?.[23] ?? dbData.water_level?.[23] ?? null;
+    sedVal = freshData.sediments?.[23] ?? dbData.sediments?.[23] ?? null;
   } else {
     // Single device - use device-specific data
     const deviceData = DEV_READINGS[parseInt(deviceId)];
