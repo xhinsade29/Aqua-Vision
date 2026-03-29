@@ -1411,6 +1411,54 @@ include __DIR__ . '/../../assets/navigation.php';
             </div>
             
         <?php else: ?>
+            <!-- Combined Status with Condition Summary -->
+            <div class="card" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); margin-bottom: 1.5rem;">
+                <div class="card-header" style="padding: 1rem;">
+                    <h4 style="font-size: 0.875rem; color: var(--gray-600); margin: 0;">📊 Devices by Status with Condition</h4>
+                </div>
+                <div style="padding: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem;">
+                        <?php
+                        // Calculate status + condition combinations
+                        $statusConditionCounts = [];
+                        $statusLabels = ['active' => 'Active', 'maintenance' => 'Maintenance', 'inactive' => 'Inactive', 'offline' => 'Offline', 'unassigned' => 'Unassigned'];
+                        $conditionColors = ['normal' => '#16a34a', 'displaced' => '#7c3aed', 'damaged' => '#1f2937', 'malfunctioning' => '#d97706'];
+                        
+                        foreach ($statusLabels as $status => $statusLabel) {
+                            foreach ($conditionColors as $condition => $color) {
+                                $key = $status . '_' . $condition;
+                                $statusConditionCounts[$key] = 0;
+                            }
+                        }
+                        
+                        foreach ($devices as $device) {
+                            $status = $device['status'] ?? 'inactive';
+                            $condition = $device['device_condition'] ?? 'normal';
+                            $key = $status . '_' . $condition;
+                            if (isset($statusConditionCounts[$key])) {
+                                $statusConditionCounts[$key]++;
+                            }
+                        }
+                        
+                        // Display combinations with devices
+                        foreach ($statusLabels as $status => $statusLabel) {
+                            foreach ($conditionColors as $condition => $color) {
+                                $count = $statusConditionCounts[$status . '_' . $condition];
+                                if ($count > 0) {
+                                    $conditionLabel = $condition === 'normal' ? '' : ' (' . ucfirst($condition) . ')';
+                                    echo '
+                                    <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 4px solid ' . $color . ';">
+                                        <div style="font-size: 1.5rem; font-weight: 700; color: ' . $color . ';">' . $count . '</div>
+                                        <div style="font-size: 0.7rem; color: var(--gray-500);">' . $statusLabel . $conditionLabel . '</div>
+                                    </div>';
+                                }
+                            }
+                        }
+                        ?>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Device Management with Map and Details -->
             <div style="display: grid; grid-template-columns: 1fr 400px; gap: 1.5rem;">
                 <!-- Device Map Overview -->
@@ -1605,6 +1653,7 @@ include __DIR__ . '/../../assets/navigation.php';
                 }
             }
             ?>
+            
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                 <!-- Status Summary -->
                 <div class="card" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
