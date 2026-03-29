@@ -52,8 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get data for current view
 $device = ($action === 'edit' && $id) ? getDeviceById($conn, $id) : null;
-$devices = ($action === 'list') ? getAllDevices($conn) : [];
-$locations = ($action === 'list') ? getAllLocations($conn) : []; // For location assignment dropdown
+$devices = ($action === 'list' || $action === 'edit') ? getAllDevices($conn) : [];
+$locations = ($action === 'list') ? getAllLocations($conn) : [];
 
 $currentPage = 'devices';
 include __DIR__ . '/../../assets/navigation.php';
@@ -641,6 +641,50 @@ include __DIR__ . '/../../assets/navigation.php';
                     `);
                 });
                 
+                // Add other device markers to prevent area duplication
+                const allDevices = <?= json_encode($devices, JSON_NUMERIC_CHECK) ?>;
+                const currentDeviceId = <?= json_encode($device['device_id'] ?? 0) ?>;
+                
+                allDevices.forEach(otherDevice => {
+                    // Skip current device being edited
+                    if (otherDevice.device_id == currentDeviceId) return;
+                    // Skip devices without coordinates
+                    if (!otherDevice.latitude || !otherDevice.longitude) return;
+                    
+                    const deviceStatusColor = otherDevice.status === 'active' ? '#16a34a' : 
+                                            otherDevice.status === 'maintenance' ? '#d97706' : '#dc2626';
+                    
+                    const otherDeviceMarker = L.marker([otherDevice.latitude, otherDevice.longitude], {
+                        icon: L.divIcon({
+                            html: `<div style="position: relative; width: 24px; height: 24px;">
+                                    <div style="position: absolute; inset: 0; border-radius: 50%; background: ${deviceStatusColor}; opacity: 0.3;"></div>
+                                    <div style="position: absolute; inset: 2px; border-radius: 50%; background: ${deviceStatusColor}; border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>
+                                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 10px; font-weight: bold;">📡</div>
+                                </div>`,
+                            iconSize: [24, 24],
+                            iconAnchor: [12, 12],
+                            className: ''
+                        })
+                    }).addTo(deviceMap);
+                    
+                    otherDeviceMarker.bindPopup(`
+                        <div style="font-family: 'Inter', sans-serif; min-width: 180px;">
+                            <div style="font-weight: 600; margin-bottom: 4px; color: ${deviceStatusColor};">
+                                📡 ${otherDevice.device_name}
+                            </div>
+                            <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">
+                                Status: <span style="text-transform: capitalize; font-weight: 500;">${otherDevice.status}</span>
+                            </div>
+                            <div style="font-size: 10px; font-family: monospace; color: #9ca3af; margin-bottom: 4px;">
+                                ${parseFloat(otherDevice.latitude).toFixed(5)}°N, ${parseFloat(otherDevice.longitude).toFixed(5)}°E
+                            </div>
+                            <div style="font-size: 10px; color: #dc2626; font-weight: 500; border-top: 1px solid #e5e7eb; padding-top: 4px;">
+                                ⚠️ Avoid placing new device too close
+                            </div>
+                        </div>
+                    `);
+                });
+                
                 // Add draggable device marker
                 const deviceMarker = L.marker([lat, lng], { 
                     draggable: true,
@@ -677,26 +721,35 @@ include __DIR__ . '/../../assets/navigation.php';
                 }
                 
                 function detectRiverSection(lat, lng) {
-                    // Calculate river progress based on longitude (river flows roughly east)
-                    // Start point: 8.345958, 124.898607 (upstream)
-                    // End point: 8.413179, 124.909497 (downstream)
+                    // Define river section boundaries based on coordinates
+                    // Upstream: before midstream start
+                    // Midstream: 8.369297, 124.876785 to 8.394873, 124.903068
+                    // Downstream: after midstream end
                     
-                    const minLng = 124.898607;
-                    const maxLng = 124.909497;
-                    const riverProgress = (lng - minLng) / (maxLng - minLng);
+                    const midstreamStart = { lat: 8.369297, lng: 124.876785 };
+                    const midstreamEnd = { lat: 8.394873, lng: 124.903068 };
                     
+                    // Calculate position along the river (using longitude as primary axis)
                     let riverSection = '';
                     let riverSectionDisplay = '';
+                    let riverProgress = 0;
                     
-                    if (riverProgress < 0.33) {
+                    if (lng < midstreamStart.lng) {
+                        // Upstream section
                         riverSection = 'upstream';
                         riverSectionDisplay = 'Upstream';
-                    } else if (riverProgress < 0.67) {
+                        riverProgress = 0.15; // Approximate upstream position
+                    } else if (lng >= midstreamStart.lng && lng <= midstreamEnd.lng) {
+                        // Midstream section
                         riverSection = 'midstream';
                         riverSectionDisplay = 'Midstream';
+                        // Calculate progress within midstream
+                        riverProgress = (lng - midstreamStart.lng) / (midstreamEnd.lng - midstreamStart.lng);
                     } else {
+                        // Downstream section
                         riverSection = 'downstream';
                         riverSectionDisplay = 'Downstream';
+                        riverProgress = 0.85; // Approximate downstream position
                     }
                     
                     // Always update location name with river section info
