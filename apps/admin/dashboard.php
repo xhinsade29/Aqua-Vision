@@ -1087,7 +1087,7 @@ function createMetricChart(canvasId, metricKey, metricLabel, metricColor) {
 
 function initMetricCharts() {
   metricCharts.temperature = createMetricChart('tempChart', 'temperature', 'Temperature (°C)', '#ef4444');
-  metricCharts.ph = createMetricChart('phChart', 'pH', 'pH Level', '#3b82f6');
+  metricCharts.pH = createMetricChart('phChart', 'pH', 'pH Level', '#3b82f6');
   metricCharts.turbidity = createMetricChart('turbChart', 'turbidity', 'Turbidity (NTU)', '#d97706');
   metricCharts.dissolved_oxygen = createMetricChart('doChart', 'dissolved_oxygen', 'Dissolved O₂ (mg/L)', '#10b981');
   metricCharts.water_level = createMetricChart('levelChart', 'water_level', 'Water Level (m)', '#8b5cf6');
