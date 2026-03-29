@@ -471,13 +471,6 @@ include __DIR__ . '/../../assets/navigation.php';
             </div>
         </div>
         
-        <?php if ($success): ?>
-            <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
-        <?php endif; ?>
-        <?php if ($error): ?>
-            <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
-        <?php endif; ?>
-        
         <?php if ($action === 'add'): ?>
             <!-- Add Device Form -->
             <div class="card">
@@ -2444,6 +2437,23 @@ include __DIR__ . '/../../assets/navigation.php';
                 }
             </script>
         <?php endif; ?>
+        
+        <!-- Toast Notifications -->
+        <?php include '../../assets/toast.php'; ?>
+        
+        <?php
+        // Show toasts for session messages
+        if (!empty($success)) {
+            echo "<script>showToast(" . json_encode($success) . ", 'success', 5000);</script>";
+        }
+        if (!empty($error)) {
+            echo "<script>showToast(" . json_encode($error) . ", 'error', 8000);</script>";
+        }
+        if (isset($_SESSION['warning'])) {
+            echo "<script>showToast(" . json_encode($_SESSION['warning']) . ", 'warning', 6000);</script>";
+            unset($_SESSION['warning']);
+        }
+        ?>
     </div>
 </body>
 </html>
@@ -2549,6 +2559,17 @@ function handleDeviceSubmission($conn, $data) {
     
     if (empty($deviceName)) {
         throw new Exception('Device name is required');
+    }
+    
+    // Check for duplicate device name
+    $deviceId = isset($data['device_id']) ? (int)$data['device_id'] : 0;
+    $checkStmt = $conn->prepare("SELECT device_id FROM devices WHERE device_name = ? AND device_id != ?");
+    $checkStmt->bind_param("si", $deviceName, $deviceId);
+    $checkStmt->execute();
+    $checkResult = $checkStmt->get_result();
+    
+    if ($checkResult->num_rows > 0) {
+        throw new Exception("Device name '{$deviceName}' is already taken. Please choose a different name.");
     }
     
     $locationId = null;

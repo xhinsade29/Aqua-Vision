@@ -1462,6 +1462,10 @@ function startSim(){
   document.getElementById('simStopBtn').style.opacity='1';
   saveMonitorState(true);
   _sendTick();
+  
+  // Show toast notification
+  const intervalSec = Math.round(ms/1000);
+  showToast(`Simulation started - Reading every ${intervalSec}s`, 'info', 4000);
 }
 function stopSim(){
   if(!_st) return;
@@ -1473,6 +1477,9 @@ function stopSim(){
   document.getElementById('simStopBtn').style.opacity='.45';
   _slog('■ Stopped.','var(--ink4)');
   saveMonitorState(false);
+  
+  // Show toast notification
+  showToast('Simulation stopped', 'warning', 3000);
 }
 
 async function saveMonitorState(running){
@@ -2014,5 +2021,59 @@ function showSyncNotification(message) {
   }, 3000);
 }
 </script>
+
+<!-- Toast Notifications -->
+<?php include '../../assets/toast.php'; ?>
+
+<?php
+// Show session-based toast messages
+if (isset($_SESSION['success'])) {
+    echo "<script>document.addEventListener('DOMContentLoaded', function() { showToast(" . json_encode($_SESSION['success']) . ", 'success', 5000); });</script>";
+    unset($_SESSION['success']);
+}
+if (isset($_SESSION['error'])) {
+    echo "<script>document.addEventListener('DOMContentLoaded', function() { showToast(" . json_encode($_SESSION['error']) . ", 'error', 8000); });</script>";
+    unset($_SESSION['error']);
+}
+?>
+
+<script>
+// Alert toast notification system
+document.addEventListener('DOMContentLoaded', function() {
+    // Check for new alerts every 10 seconds
+    let lastAlertCount = 0;
+    
+    function checkAlerts() {
+        fetch(`${SELF}?action=fetch&_=${Date.now()}`)
+            .then(r => r.json())
+            .then(d => {
+                if (d.ok && d.alerts) {
+                    const currentAlerts = d.alerts.filter(a => a.status === 'active');
+                    
+                    // Show toast for new alerts
+                    currentAlerts.forEach(alert => {
+                        const severity = alert.alert_type === 'critical' ? 'error' : 
+                                        alert.alert_type === 'high' ? 'warning' : 'warning';
+                        showToast(
+                            `${alert.device_name}: ${alert.message}`,
+                            severity,
+                            8000
+                        );
+                    });
+                    
+                    lastAlertCount = currentAlerts.length;
+                }
+            })
+            .catch(() => {});
+    }
+    
+    // Initial check after 2 seconds
+    setTimeout(checkAlerts, 2000);
+    
+    // Periodic checks every 30 seconds
+    setInterval(checkAlerts, 30000);
+});
+</script>
+
 </body>
 </html>

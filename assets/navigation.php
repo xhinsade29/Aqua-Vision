@@ -459,18 +459,37 @@ $logoSrc = $assetBase . '/logo.png';
 
   <!-- ── User Footer ───────────────────────────────── -->
   <div class="av-user-footer">
-    <div class="av-user-card" role="button" tabindex="0" aria-label="User menu">
-      <div class="av-avatar" aria-hidden="true">AJ</div>
+    <a href="/Aqua-Vision/logout.php" class="av-user-card" role="button" tabindex="0" aria-label="Logout" onclick="return confirm('Are you sure you want to logout?');">
+      <div class="av-avatar" aria-hidden="true"><?= strtoupper(substr($_SESSION['user_name'] ?? 'U', 0, 1)) ?></div>
       <div class="av-user-info">
-        <div class="av-user-name">Alex Johnson</div>
-        <div class="av-user-role">Administrator</div>
+        <div class="av-user-name"><?= htmlspecialchars($_SESSION['user_name'] ?? 'User') ?></div>
+        <div class="av-user-role"><?= ucfirst($_SESSION['user_role'] ?? 'User') ?> • Click to logout</div>
       </div>
       <div class="av-user-menu-btn" aria-hidden="true">
         <div class="av-dot"></div>
         <div class="av-dot"></div>
         <div class="av-dot"></div>
       </div>
-    </div>
+    </a>
   </div>
 
 </nav>
+
+<!-- Toast Notifications -->
+<?php include __DIR__ . '/toast.php'; ?>
+
+<?php
+// Show session-based toast messages
+if (isset($_SESSION['success'])) {
+    echo "<script>document.addEventListener('DOMContentLoaded', function() { showToast(" . json_encode($_SESSION['success']) . ", 'success', 5000); });</script>";
+    unset($_SESSION['success']);
+}
+if (isset($_SESSION['error'])) {
+    echo "<script>document.addEventListener('DOMContentLoaded', function() { showToast(" . json_encode($_SESSION['error']) . ", 'error', 8000); });</script>";
+    unset($_SESSION['error']);
+}
+if (isset($_SESSION['warning'])) {
+    echo "<script>document.addEventListener('DOMContentLoaded', function() { showToast(" . json_encode($_SESSION['warning']) . ", 'warning', 6000); });</script>";
+    unset($_SESSION['warning']);
+}
+?>

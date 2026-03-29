@@ -758,5 +758,20 @@ if (($_GET['action'] ?? '') === 'fetch') {
             startSync(10000); // Sync every 10 seconds
         });
     </script>
+    
+    <!-- Toast Notifications -->
+    <?php include '../../assets/toast.php'; ?>
+    
+    <?php
+    // Show session-based toast messages
+    if (isset($_SESSION['success'])) {
+        echo "<script>document.addEventListener('DOMContentLoaded', function() { showToast(" . json_encode($_SESSION['success']) . ", 'success', 5000); });</script>";
+        unset($_SESSION['success']);
+    }
+    if (isset($_SESSION['error'])) {
+        echo "<script>document.addEventListener('DOMContentLoaded', function() { showToast(" . json_encode($_SESSION['error']) . ", 'error', 8000); });</script>";
+        unset($_SESSION['error']);
+    }
+    ?>
 </body>
 </html>

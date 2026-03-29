@@ -60,6 +60,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Log successful login
                 log_activity($conn, 'LOGIN_SUCCESS', "User {$user['username']} logged in successfully");
                 
+                // Set success message for toast
+                $_SESSION['success'] = "Welcome back, {$user['full_name']}!";
+                
                 // Redirect to dashboard
                 header('Location: apps/admin/dashboard.php');
                 exit();
@@ -150,5 +153,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </div>
 </div>
+
+<!-- Toast Notifications -->
+<?php include 'assets/toast.php'; ?>
+
+<?php if ($error): ?>
+<script>showToast(<?= json_encode($error) ?>, 'error', 5000);</script>
+<?php endif; ?>
+
+<?php if (isset($_SESSION['logout_message'])): ?>
+<script>showToast(<?= json_encode($_SESSION['logout_message']) ?>, 'info', 4000);</script>
+<?php unset($_SESSION['logout_message']); endif; ?>
 </body>
 </html>

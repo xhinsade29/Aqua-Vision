@@ -1,29 +1,41 @@
 <?php
 /**
- * Aqua-Vision Logout
+ * Aqua-Vision Logout Page
  * Location: logout.php
  */
 
 session_start();
 
-// Log logout activity if user was logged in
+// Log the logout activity before destroying session
 if (isset($_SESSION['user_id'])) {
     require_once 'database/config.php';
-    log_activity('logout', "User {$_SESSION['username']} logged out");
+    
+    $userId = $_SESSION['user_id'];
+    $username = $_SESSION['username'] ?? 'Unknown';
+    $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+    
+    $stmt = $conn->prepare("INSERT INTO system_logs (user_id, action, details, ip_address, user_agent) VALUES (?, 'LOGOUT', ?, ?, ?)");
+    $details = "User {$username} logged out";
+    $stmt->bind_param("isss", $userId, $details, $ipAddress, $userAgent);
+    $stmt->execute();
+    $stmt->close();
     $conn->close();
 }
 
-// Destroy session
-session_destroy();
+// Store logout message in session for display after redirect
+$_SESSION['logout_message'] = 'You have been logged out successfully';
 
-// Clear session cookie
-if (ini_get("session.use_cookies")) {
-    $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000,
-        $params["path"], $params["domain"],
-        $params["secure"], $params["httponly"]
-    );
+// Clear all session data
+$_SESSION = array();
+
+// Destroy session cookie
+if (isset($_COOKIE[session_name()])) {
+    setcookie(session_name(), '', time() - 3600, '/');
 }
+
+// Destroy the session
+session_destroy();
 
 // Redirect to login page
 header('Location: login.php');
