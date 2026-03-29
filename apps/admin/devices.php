@@ -1267,12 +1267,48 @@ include __DIR__ . '/../../assets/navigation.php';
             
             <!-- Devices Table -->
             <div class="card">
-                <div class="card-header">
-                    <h3>📡 All Monitoring Devices</h3>
-                    <span class="badge badge-info"><?= count($devices) ?> total</span>
+                <div class="card-header" style="flex-direction: column; align-items: stretch; gap: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>📡 All Monitoring Devices</h3>
+                        <span class="badge badge-info" id="deviceCount"><?= count($devices) ?> total</span>
+                    </div>
+                    
+                    <!-- Filter Controls -->
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <label style="font-size: 0.75rem; color: var(--gray-500); font-weight: 500;">Status</label>
+                            <select id="filterStatus" style="padding: 0.5rem; border: 1px solid var(--gray-200); border-radius: 6px; font-size: 0.875rem;" onchange="filterDevices()">
+                                <option value="">All Statuses</option>
+                                <option value="active">Active</option>
+                                <option value="maintenance">Maintenance</option>
+                                <option value="displaced">Displaced</option>
+                                <option value="damaged">Damaged</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <label style="font-size: 0.75rem; color: var(--gray-500); font-weight: 500;">River Section</label>
+                            <select id="filterSection" style="padding: 0.5rem; border: 1px solid var(--gray-200); border-radius: 6px; font-size: 0.875rem;" onchange="filterDevices()">
+                                <option value="">All Sections</option>
+                                <option value="upstream">Upstream</option>
+                                <option value="midstream">Midstream</option>
+                                <option value="downstream">Downstream</option>
+                            </select>
+                        </div>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <label style="font-size: 0.75rem; color: var(--gray-500); font-weight: 500;">Search</label>
+                            <input type="text" id="filterSearch" placeholder="Device name..." style="padding: 0.5rem; border: 1px solid var(--gray-200); border-radius: 6px; font-size: 0.875rem;" onkeyup="filterDevices()">
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-end;">
+                            <button onclick="resetFilters()" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Reset Filters</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="table-responsive">
-                    <table class="data-table">
+                    <table class="data-table" id="devicesTable">
                         <thead>
                             <tr>
                                 <th>Device Name</th>
@@ -1283,7 +1319,7 @@ include __DIR__ . '/../../assets/navigation.php';
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="devicesTableBody">
                             <?php if (empty($devices)): ?>
                                 <tr>
                                     <td colspan="6" style="text-align: center; padding: 2rem;">
@@ -1292,10 +1328,13 @@ include __DIR__ . '/../../assets/navigation.php';
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($devices as $device): ?>
-                                    <tr>
+                                    <tr class="device-row" 
+                                        data-status="<?= $device['status'] ?>" 
+                                        data-section="<?= $device['river_section'] ?? '' ?>"
+                                        data-name="<?= strtolower(htmlspecialchars($device['device_name'])) ?>">
                                         <td><strong><?= htmlspecialchars($device['device_name']) ?></strong></td>
                                         <td>
-                                            <span class="badge badge-<?= $device['status'] === 'active' ? 'success' : ($device['status'] === 'maintenance' ? 'warning' : 'danger') ?>">
+                                            <span class="badge badge-<?= $device['status'] === 'active' ? 'success' : ($device['status'] === 'maintenance' ? 'warning' : ($device['status'] === 'displaced' ? 'purple' : ($device['status'] === 'damaged' ? 'dark' : 'danger'))) ?>">
                                                 <?= ucfirst($device['status']) ?>
                                             </span>
                                         </td>
@@ -1315,6 +1354,59 @@ include __DIR__ . '/../../assets/navigation.php';
             </div>
             
             <script>
+                // Device filtering functionality
+                function filterDevices() {
+                    const statusFilter = document.getElementById('filterStatus').value.toLowerCase();
+                    const sectionFilter = document.getElementById('filterSection').value.toLowerCase();
+                    const searchFilter = document.getElementById('filterSearch').value.toLowerCase();
+                    
+                    const rows = document.querySelectorAll('.device-row');
+                    let visibleCount = 0;
+                    
+                    rows.forEach(row => {
+                        const status = row.getAttribute('data-status').toLowerCase();
+                        const section = row.getAttribute('data-section').toLowerCase();
+                        const name = row.getAttribute('data-name').toLowerCase();
+                        
+                        const statusMatch = !statusFilter || status === statusFilter;
+                        const sectionMatch = !sectionFilter || section === sectionFilter;
+                        const searchMatch = !searchFilter || name.includes(searchFilter);
+                        
+                        if (statusMatch && sectionMatch && searchMatch) {
+                            row.style.display = '';
+                            visibleCount++;
+                        } else {
+                            row.style.display = 'none';
+                        }
+                    });
+                    
+                    // Update count badge
+                    const totalCount = document.querySelectorAll('.device-row').length;
+                    document.getElementById('deviceCount').textContent = `${visibleCount} of ${totalCount} shown`;
+                    
+                    // Show no results message if needed
+                    const tbody = document.getElementById('devicesTableBody');
+                    const existingNoResults = tbody.querySelector('.no-results-row');
+                    if (existingNoResults) existingNoResults.remove();
+                    
+                    if (visibleCount === 0) {
+                        const noResultsRow = document.createElement('tr');
+                        noResultsRow.className = 'no-results-row';
+                        noResultsRow.innerHTML = `
+                            <td colspan="6" style="text-align: center; padding: 2rem; color: var(--gray-500);">
+                                No devices match the selected filters.
+                            </td>
+                        `;
+                        tbody.appendChild(noResultsRow);
+                    }
+                }
+                
+                function resetFilters() {
+                    document.getElementById('filterStatus').value = '';
+                    document.getElementById('filterSection').value = '';
+                    document.getElementById('filterSearch').value = '';
+                    filterDevices();
+                }
                 // Device map and details functionality
                 let deviceOverviewMap = null;
                 let deviceMapVisible = true;
