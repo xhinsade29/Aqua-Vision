@@ -392,7 +392,6 @@ include __DIR__ . '/../../assets/navigation.php';
             </div>
         </div>
         
-        <!-- Alerts -->
         <?php if ($success): ?>
             <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
         <?php endif; ?>
@@ -400,18 +399,15 @@ include __DIR__ . '/../../assets/navigation.php';
             <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
         
-        <?php if ($action === 'add' || $action === 'edit'): ?>
-            <!-- Device Form -->
+        <?php if ($action === 'add'): ?>
+            <!-- Add Device Form -->
             <div class="card">
                 <div class="card-header">
-                    <h3><?= $action === 'add' ? 'Add New Device' : 'Edit Device' ?></h3>
+                    <h3>Add New Device</h3>
                 </div>
                 <div class="card-body" style="padding: 1.25rem;">
                     <form method="POST" action="">
-                        <input type="hidden" name="action" value="<?= $action ?>">
-                        <?php if ($action === 'edit'): ?>
-                            <input type="hidden" name="device_id" value="<?= $device['device_id'] ?>">
-                        <?php endif; ?>
+                        <input type="hidden" name="action" value="add">
                         
                         <div class="form-group">
                             <label>Device Name *</label>
@@ -421,9 +417,9 @@ include __DIR__ . '/../../assets/navigation.php';
                         <div class="form-group">
                             <label>Status</label>
                             <select name="status">
-                                <option value="active" <?= $device && $device['status'] === 'active' ? 'selected' : '' ?>>Active</option>
-                                <option value="maintenance" <?= $device && $device['status'] === 'maintenance' ? 'selected' : '' ?>>Maintenance</option>
-                                <option value="inactive" <?= $device && $device['status'] === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                                <option value="active">Active</option>
+                                <option value="maintenance">Maintenance</option>
+                                <option value="inactive">Inactive</option>
                             </select>
                         </div>
                         
@@ -435,7 +431,7 @@ include __DIR__ . '/../../assets/navigation.php';
                                 $locationsResult = $conn->query("SELECT location_id, location_name FROM locations ORDER BY location_name");
                                 while ($loc = $locationsResult->fetch_assoc()):
                                 ?>
-                                    <option value="<?= $loc['location_id'] ?>" <?= $device && $device['location_id'] == $loc['location_id'] ? 'selected' : '' ?>>
+                                    <option value="<?= $loc['location_id'] ?>">
                                         <?= htmlspecialchars($loc['location_name']) ?>
                                     </option>
                                 <?php endwhile; ?>
@@ -449,6 +445,413 @@ include __DIR__ . '/../../assets/navigation.php';
                     </form>
                 </div>
             </div>
+            
+        <?php elseif ($action === 'edit'): ?>
+            <!-- Edit Device Form with Map -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Edit Device</h3>
+                </div>
+                <div class="card-body" style="padding: 1.25rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 300px; gap: 1.5rem;">
+                        <!-- Device Location Map -->
+                        <div>
+                            <div id="device-location-map" style="height: 400px; border-radius: var(--radius); border: 1px solid var(--gray-200);"></div>
+                            <p style="font-size: 0.75rem; color: var(--gray-500); margin-top: 0.5rem;">
+                                💡 Click on the map to set device location, or drag the marker
+                            </p>
+                        </div>
+                        
+                        <!-- Device Form -->
+                        <form method="POST" action="">
+                            <input type="hidden" name="action" value="edit">
+                            <input type="hidden" name="device_id" value="<?= $device['device_id'] ?>">
+                            
+                            <div class="form-group">
+                                <label>Device Name *</label>
+                                <input type="text" name="device_name" value="<?= htmlspecialchars($device['device_name']) ?>" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Status</label>
+                                <select name="status" id="deviceStatus" required onchange="toggleMapAccess()">
+                                    <option value="active" <?= $device['status'] === 'active' ? 'selected' : '' ?>>Active</option>
+                                    <option value="maintenance" <?= $device['status'] === 'maintenance' ? 'selected' : '' ?>>Maintenance</option>
+                                    <option value="inactive" <?= $device['status'] === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Latitude</label>
+                                <input type="number" id="latitude" name="latitude" step="0.000001" 
+                                       value="<?= $device['latitude'] ?: '8.368900' ?>" readonly>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Longitude</label>
+                                <input type="number" id="longitude" name="longitude" step="0.000001" 
+                                       value="<?= $device['longitude'] ?: '124.863000' ?>" readonly>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Stream Assigned</label>
+                                <input type="text" id="locationName" name="location_name" 
+                                       value="<?= $device['location_name'] ?: '' ?>" readonly>
+                            </div>
+                            
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+                                <button type="submit" class="btn btn-primary">Save Device</button>
+                                <a href="?action=list" class="btn btn-secondary">Cancel</a>
+                            </div>
+                        </form>
+                        
+                        <!-- Device Info Panel -->
+                        <div class="card" style="margin: 0;">
+                            <div class="card-header" style="padding: 0.75rem 1rem;">
+                                <h3 style="font-size: 0.875rem; margin: 0;">📊 Device Information</h3>
+                            </div>
+                            <div class="card-body" style="padding: 1rem;">
+                                <!-- Device Stats -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                                    <div style="text-align: center; padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius);">
+                                        <div style="font-size: 1.5rem; font-weight: 600; color: var(--primary);">ID #<?= $device['device_id'] ?></div>
+                                        <div style="font-size: 0.75rem; color: var(--gray-500);">Device ID</div>
+                                    </div>
+                                    <div style="text-align: center; padding: 0.75rem; background: var(--gray-50); border-radius: var(--radius);">
+                                        <div style="font-size: 1.5rem; font-weight: 600; color: <?= $device['status'] === 'active' ? 'var(--success)' : 'var(--danger)' ?>;">
+                                            <?= ucfirst($device['status']) ?>
+                                        </div>
+                                        <div style="font-size: 0.75rem; color: var(--gray-500);">Current Status</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Current Assignment -->
+                                <div style="margin-bottom: 1rem;">
+                                    <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.25rem;">Current Location</div>
+                                    <div style="font-size: 0.875rem; font-weight: 500;">
+                                        <?= $device['location_name'] ?: 'Unassigned' ?>
+                                    </div>
+                                </div>
+                                
+                                <!-- Last Active -->
+                                <div style="margin-bottom: 1rem;">
+                                    <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.25rem;">Last Active</div>
+                                    <div style="font-size: 0.875rem; font-weight: 500;">
+                                        <?= $device['last_active'] ? date('M d, H:i', strtotime($device['last_active'])) : 'Never' ?>
+                                    </div>
+                                </div>
+                                
+                                <!-- Coordinates -->
+                                <div>
+                                    <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.25rem;">Coordinates</div>
+                                    <div style="font-size: 0.875rem; font-weight: 500; font-family: monospace;">
+                                        <?= $device['latitude'] ? number_format($device['latitude'], 5) . '°N, ' . number_format($device['longitude'], 5) . '°E' : 'Not set' ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+                // Initialize device location map
+                const lat = parseFloat(document.getElementById('latitude').value) || 8.368900;
+                const lng = parseFloat(document.getElementById('longitude').value) || 124.863000;
+                
+                // Mangima River coordinates for visualization
+                const mangimaRiverCoords = [
+                    [8.345958, 124.898607], [8.346955, 124.899036], [8.347603, 124.898081],
+                    [8.349471, 124.896461], [8.349216, 124.895474], [8.349535, 124.894755],
+                    [8.348909, 124.894058], [8.349881, 124.893209], [8.352050, 124.889584],
+                    [8.351096, 124.889497], [8.351978, 124.888415], [8.352369, 124.887056],
+                    [8.352210, 124.886676], [8.352643, 124.886427], [8.353468, 124.884863],
+                    [8.355492, 124.883376], [8.356292, 124.881332], [8.358270, 124.881140],
+                    [8.368532, 124.875713], [8.373977, 124.876690], [8.381657, 124.897203],
+                    [8.394810, 124.903483], [8.396343, 124.907500], [8.399906, 124.911121],
+                    [8.400757, 124.910773], [8.401407, 124.910581], [8.401636, 124.910868],
+                    [8.401774, 124.911007], [8.402125, 124.911168], [8.402489, 124.911218],
+                    [8.402853, 124.911196], [8.403020, 124.911119], [8.403792, 124.910506],
+                    [8.405310, 124.909972], [8.405901, 124.909983], [8.406337, 124.910087],
+                    [8.406533, 124.910179], [8.406700, 124.910291], [8.406745, 124.910385],
+                    [8.406713, 124.910512], [8.405924, 124.911388], [8.405818, 124.911576],
+                    [8.405829, 124.911689], [8.405924, 124.911801], [8.406275, 124.911984],
+                    [8.406715, 124.912414], [8.407049, 124.912661], [8.409034, 124.913466],
+                    [8.409793, 124.913708], [8.410064, 124.913713], [8.410472, 124.913676],
+                    [8.411629, 124.913198], [8.412245, 124.912800], [8.412515, 124.912462],
+                    [8.412632, 124.911962], [8.413237, 124.909739], [8.413179, 124.909497]
+                ];
+                
+                const deviceMap = L.map('device-location-map', {
+                    center: [lat, lng],
+                    zoom: 13,
+                    minZoom: 12,
+                    maxZoom: 16,
+                    maxBounds: [[8.32, 124.88], [8.42, 124.93]],
+                    maxBoundsViscosity: 1.0
+                }).setView([lat, lng], 13);
+                
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    subdomains: 'abcd'
+                }).addTo(deviceMap);
+                
+                // Add Mangima River visualization
+                L.polyline(mangimaRiverCoords, {
+                    color: '#0d1117',
+                    weight: 18,
+                    opacity: 0.12
+                }).addTo(deviceMap);
+                
+                L.polyline(mangimaRiverCoords, {
+                    color: '#1a56db',
+                    weight: 8,
+                    opacity: 0.55
+                }).addTo(deviceMap);
+                
+                L.polyline(mangimaRiverCoords, {
+                    color: '#60a5fa',
+                    weight: 4,
+                    opacity: 0.85
+                }).addTo(deviceMap);
+                
+                // Add existing location markers
+                const locations = <?= json_encode($locations, JSON_NUMERIC_CHECK) ?>;
+                locations.forEach(loc => {
+                    const color = getRiverSectionColor(loc.river_section);
+                    
+                    const marker = L.circleMarker([loc.latitude, loc.longitude], {
+                        radius: 8,
+                        fillColor: color,
+                        color: '#fff',
+                        weight: 2,
+                        fillOpacity: 0.8
+                    }).addTo(deviceMap);
+                    
+                    marker.bindPopup(`
+                        <div style="font-family: 'Inter', sans-serif; min-width: 150px;">
+                            <div style="font-weight: 600; margin-bottom: 4px;">${loc.location_name}</div>
+                            <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">
+                                ${loc.river_section.charAt(0).toUpperCase() + loc.river_section.slice(1)} Section
+                            </div>
+                            <div style="font-size: 10px; font-family: monospace; color: #9ca3af;">
+                                ${loc.latitude.toFixed(5)}°N, ${loc.longitude.toFixed(5)}°E
+                            </div>
+                        </div>
+                    `);
+                });
+                
+                // Add draggable device marker
+                const deviceMarker = L.marker([lat, lng], { 
+                    draggable: true,
+                    icon: L.divIcon({
+                        html: `<div style="position: relative; width: 30px; height: 30px;">
+                                <div style="position: absolute; inset: 0; border-radius: 50%; background: #1a56db; opacity: 0.2; animation: pulse 2s ease-out infinite"></div>
+                                <div style="position: absolute; inset: 4px; border-radius: 50%; background: #1a56db; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.3); cursor: move;"></div>
+                                <div style="position: absolute; top: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #1a56db;"></div>
+                            </div>`,
+                        iconSize: [30, 30],
+                        iconAnchor: [15, 30],
+                        className: ''
+                    })
+                }).addTo(deviceMap);
+                
+                // Update form when marker is dragged
+                deviceMarker.on('dragend', function(e) {
+                    const pos = e.target.getLatLng();
+                    updateDeviceLocation(pos.lat, pos.lng);
+                });
+                
+                // Update marker when map is clicked
+                deviceMap.on('click', function(e) {
+                    deviceMarker.setLatLng(e.latlng);
+                    updateDeviceLocation(e.latlng.lat, e.latlng.lng);
+                });
+                
+                function updateDeviceLocation(lat, lng) {
+                    document.getElementById('latitude').value = lat.toFixed(6);
+                    document.getElementById('longitude').value = lng.toFixed(6);
+                    
+                    // Auto-detect river section
+                    detectRiverSection(lat, lng);
+                }
+                
+                function detectRiverSection(lat, lng) {
+                    // Calculate river progress based on longitude (river flows roughly east)
+                    // Start point: 8.345958, 124.898607 (upstream)
+                    // End point: 8.413179, 124.909497 (downstream)
+                    
+                    const minLng = 124.898607;
+                    const maxLng = 124.909497;
+                    const riverProgress = (lng - minLng) / (maxLng - minLng);
+                    
+                    let riverSection = '';
+                    let riverSectionDisplay = '';
+                    
+                    if (riverProgress < 0.33) {
+                        riverSection = 'upstream';
+                        riverSectionDisplay = 'Upstream';
+                    } else if (riverProgress < 0.67) {
+                        riverSection = 'midstream';
+                        riverSectionDisplay = 'Midstream';
+                    } else {
+                        riverSection = 'downstream';
+                        riverSectionDisplay = 'Downstream';
+                    }
+                    
+                    // Always update location name with river section info
+                    document.getElementById('locationName').value = `${riverSectionDisplay} Section`;
+                    
+                    // Show river section indicator
+                    showRiverSectionIndicator(riverSection, riverSectionDisplay, riverProgress);
+                }
+                
+                function showRiverSectionIndicator(section, displayName, progress) {
+                    // Remove existing indicator if present
+                    const existingIndicator = document.getElementById('river-section-indicator');
+                    if (existingIndicator) {
+                        existingIndicator.remove();
+                    }
+                    
+                    // Create indicator element
+                    const indicator = document.createElement('div');
+                    indicator.id = 'river-section-indicator';
+                    indicator.style.cssText = `
+                        position: absolute;
+                        top: 10px;
+                        right: 10px;
+                        background: ${getRiverSectionColor(section)};
+                        color: white;
+                        padding: 6px 12px;
+                        border-radius: 20px;
+                        font-size: 12px;
+                        font-weight: 600;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                        z-index: 1000;
+                        animation: slideInRight 0.3s ease-out;
+                    `;
+                    indicator.textContent = `${displayName} (${Math.round(progress * 100)}% down river)`;
+                    
+                    // Add to map container
+                    const mapContainer = document.getElementById('device-location-map');
+                    if (mapContainer && mapContainer.parentNode) {
+                        mapContainer.parentNode.style.position = 'relative';
+                        mapContainer.parentNode.appendChild(indicator);
+                        
+                        // Auto-hide after 3 seconds
+                        setTimeout(() => {
+                            if (indicator.parentNode) {
+                                indicator.style.animation = 'slideInRight 0.3s ease-out reverse';
+                                setTimeout(() => {
+                                    if (indicator.parentNode) {
+                                        indicator.parentNode.removeChild(indicator);
+                                    }
+                                }, 300);
+                            }
+                        }, 3000);
+                    }
+                }
+                
+                function getRiverSectionColor(section) {
+                    const colors = {
+                        'upstream': '#059669',
+                        'midstream': '#d97706', 
+                        'downstream': '#dc2626'
+                    };
+                    return colors[section] || '#3b82f6';
+                }
+                
+                // Add pulse animation CSS
+                if (!document.getElementById('device-pulse-style')) {
+                    const pulseStyle = document.createElement('style');
+                    pulseStyle.id = 'device-pulse-style';
+                    pulseStyle.textContent = `
+                        @keyframes pulse {
+                            0% { transform: scale(1); opacity: 1; }
+                            50% { transform: scale(1.1); opacity: 0.7; }
+                            100% { transform: scale(1); opacity: 1; }
+                        }
+                        @keyframes slideInRight {
+                            from { transform: translateX(100%); opacity: 0; }
+                            to { transform: translateX(0); opacity: 1; }
+                        }
+                    `;
+                    document.head.appendChild(pulseStyle);
+                }
+                
+                // Initialize map access based on device status
+                toggleMapAccess();
+                
+                function toggleMapAccess() {
+                    const status = document.getElementById('deviceStatus').value;
+                    const mapContainer = document.getElementById('device-location-map');
+                    const latitudeField = document.getElementById('latitude');
+                    const longitudeField = document.getElementById('longitude');
+                    const streamAssignedField = document.getElementById('locationName');
+                    
+                    if (status === 'active') {
+                        // Enable map functionality
+                        if (mapContainer) {
+                            mapContainer.style.opacity = '1';
+                            mapContainer.style.pointerEvents = 'auto';
+                            mapContainer.style.filter = 'none';
+                        }
+                        if (deviceMarker) {
+                            deviceMarker.dragging.enable();
+                        }
+                        // Remove status message if exists
+                        const statusMsg = document.getElementById('map-status-message');
+                        if (statusMsg) {
+                            statusMsg.remove();
+                        }
+                    } else {
+                        // Disable map functionality
+                        if (mapContainer) {
+                            mapContainer.style.opacity = '0.5';
+                            mapContainer.style.pointerEvents = 'none';
+                            mapContainer.style.filter = 'grayscale(100%)';
+                        }
+                        if (deviceMarker) {
+                            deviceMarker.dragging.disable();
+                        }
+                        
+                        // Show status message
+                        let statusMsg = document.getElementById('map-status-message');
+                        if (!statusMsg) {
+                            statusMsg = document.createElement('div');
+                            statusMsg.id = 'map-status-message';
+                            statusMsg.style.cssText = `
+                                position: absolute;
+                                top: 50%;
+                                left: 50%;
+                                transform: translate(-50%, -50%);
+                                background: rgba(0,0,0,0.8);
+                                color: white;
+                                padding: 1rem 1.5rem;
+                                border-radius: 8px;
+                                font-size: 14px;
+                                font-weight: 600;
+                                text-align: center;
+                                z-index: 1001;
+                                pointer-events: none;
+                            `;
+                            mapContainer.parentNode.style.position = 'relative';
+                            mapContainer.parentNode.appendChild(statusMsg);
+                        }
+                        
+                        if (status === 'maintenance') {
+                            statusMsg.innerHTML = '🔧 <strong>Device Under Maintenance</strong><br><small>Location assignment is disabled during maintenance</small>';
+                        } else if (status === 'inactive') {
+                            statusMsg.innerHTML = '⚠️ <strong>Device Inactive</strong><br><small>Location assignment is disabled for inactive devices</small>';
+                        }
+                        
+                        // Clear coordinate fields for non-active devices
+                        latitudeField.value = '';
+                        longitudeField.value = '';
+                        streamAssignedField.value = '';
+                    }
+                }
+            </script>
             
         <?php elseif ($action === 'delete'): ?>
             <!-- Delete Confirmation -->
@@ -996,10 +1399,50 @@ function handleFormSubmission($conn, $data) {
 function handleDeviceSubmission($conn, $data) {
     $deviceName = trim($data['device_name'] ?? '');
     $status = $data['status'] ?? 'inactive';
-    $locationId = !empty($data['location_id']) ? (int)$data['location_id'] : null;
+    $latitude = isset($data['latitude']) ? floatval($data['latitude']) : null;
+    $longitude = isset($data['longitude']) ? floatval($data['longitude']) : null;
+    $streamAssigned = trim($data['location_name'] ?? '');
     
     if (empty($deviceName)) {
         throw new Exception('Device name is required');
+    }
+    
+    $locationId = null;
+    
+    // Only create/update location if device is active and has coordinates
+    if ($status === 'active' && $latitude && $longitude) {
+        // Try to find existing location with similar coordinates
+        $stmt = $conn->prepare("SELECT location_id FROM locations WHERE 
+                               ABS(latitude - ?) < 0.001 AND ABS(longitude - ?) < 0.001");
+        $stmt->bind_param("dd", $latitude, $longitude);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($existingLocation = $result->fetch_assoc()) {
+            $locationId = $existingLocation['location_id'];
+        } else {
+            // Create new location for this device
+            $riverSection = 'custom'; // Default section
+            if (strpos($streamAssigned, 'Upstream') !== false) {
+                $riverSection = 'upstream';
+            } elseif (strpos($streamAssigned, 'Midstream') !== false) {
+                $riverSection = 'midstream';
+            } elseif (strpos($streamAssigned, 'Downstream') !== false) {
+                $riverSection = 'downstream';
+            }
+            
+            $locationName = $streamAssigned ?: 'Custom Location';
+            
+            $stmt = $conn->prepare("INSERT INTO locations (location_name, river_section, latitude, longitude) 
+                                   VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("ssdd", $locationName, $riverSection, $latitude, $longitude);
+            
+            if ($stmt->execute()) {
+                $locationId = $conn->insert_id;
+            } else {
+                throw new Exception('Failed to create location: ' . $conn->error);
+            }
+        }
     }
     
     if (isset($data['device_id']) && $data['device_id'] > 0) {
@@ -1102,7 +1545,10 @@ function getAllLocations($conn) {
  * Get device by ID
  */
 function getDeviceById($conn, $id) {
-    $stmt = $conn->prepare("SELECT * FROM devices WHERE device_id = ?");
+    $stmt = $conn->prepare("SELECT d.*, l.location_name, l.river_section, l.latitude, l.longitude 
+                            FROM devices d 
+                            LEFT JOIN locations l ON l.location_id = d.location_id 
+                            WHERE d.device_id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     return $stmt->get_result()->fetch_assoc();

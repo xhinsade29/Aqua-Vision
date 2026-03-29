@@ -84,6 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     body{font-family:'DM Sans',sans-serif;background:linear-gradient(135deg,var(--c1) 0%,var(--c2) 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
     .login-container{background:var(--surface);border-radius:16px;box-shadow:0 20px 40px rgba(15,40,84,.15);overflow:hidden;width:100%;max-width:420px}
     .login-header{background:linear-gradient(135deg,var(--c1),var(--c2));padding:40px 30px;text-align:center}
+    .logo-img{width:80px;height:80px;margin-bottom:16px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.3);box-shadow:0 4px 15px rgba(0,0,0,.2)}
     .logo{font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;color:#fff;margin-bottom:8px}
     .logo-sub{color:var(--c4);font-size:14px}
     .login-body{padding:40px 30px}
@@ -102,7 +103,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
 <div class="login-container">
   <div class="login-header">
-    <div class="logo">🌊 Aqua-Vision</div>
+    <img src="assets/logo.png" alt="Aqua-Vision Logo" class="logo-img">
+    <div class="logo">Aqua-Vision</div>
     <div class="logo-sub">River Water Quality Monitoring</div>
   </div>
   
