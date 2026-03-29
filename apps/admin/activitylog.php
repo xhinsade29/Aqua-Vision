@@ -69,7 +69,24 @@ function getDeviceStatusHistory($conn, $limit = 50) {
 }
 
 /**
- * Get activity timeline combining readings, alerts, and status changes
+ * Get system activity logs
+ */
+function getSystemLogs($conn, $hours = 24) {
+    $sql = "SELECT sl.log_id, sl.action, sl.details, sl.ip_address, sl.created_at,
+                   u.username, u.full_name
+            FROM system_logs sl
+            LEFT JOIN users u ON u.user_id = sl.user_id
+            WHERE sl.created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            ORDER BY sl.created_at DESC
+            LIMIT 100";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('i', $hours);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
+ * Get activity timeline combining readings, alerts, status changes, and system logs
  */
 function getActivityTimeline($conn, $hours = 24) {
     $timeline = [];
@@ -105,6 +122,21 @@ function getActivityTimeline($conn, $hours = 24) {
                 'data' => $a
             ];
         }
+    }
+    
+    // Get system logs
+    $systemLogs = getSystemLogs($conn, $hours);
+    foreach ($systemLogs as $log) {
+        $timeline[] = [
+            'type' => 'system',
+            'timestamp' => $log['created_at'],
+            'action' => $log['action'],
+            'message' => $log['details'],
+            'user' => $log['full_name'] ?? $log['username'] ?? 'System',
+            'ip' => $log['ip_address'],
+            'severity' => 'info',
+            'data' => $log
+        ];
     }
     
     // Sort by timestamp descending
@@ -454,7 +486,7 @@ if (($_GET['action'] ?? '') === 'fetch') {
     <div class="container">
         <div class="page-header">
             <h1>📜 History & Activity Log</h1>
-            <p>View sensor readings, alerts, and device activity over time</p>
+            <p>View sensor readings, alerts, device activity, and system logs over time</p>
         </div>
         
         <!-- Statistics -->
@@ -551,6 +583,22 @@ if (($_GET['action'] ?? '') === 'fetch') {
                                             • Acknowledged
                                         <?php elseif ($item['status'] === 'resolved'): ?>
                                             • Resolved
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php elseif ($item['type'] === 'system'): ?>
+                                <div class="timeline-icon" style="background: #dbeafe;">🔧</div>
+                                <div class="timeline-content">
+                                    <div class="timeline-title">
+                                        <?= htmlspecialchars(str_replace('_', ' ', $item['action'])) ?>
+                                        <span class="timeline-badge info">System</span>
+                                    </div>
+                                    <div class="timeline-desc"><?= htmlspecialchars($item['message']) ?></div>
+                                    <div class="timeline-meta">
+                                        <?= date('M d, Y H:i:s', strtotime($item['timestamp'])) ?>
+                                        • By: <?= htmlspecialchars($item['user']) ?>
+                                        <?php if ($item['ip']): ?>
+                                            • IP: <?= htmlspecialchars($item['ip']) ?>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -660,6 +708,23 @@ if (($_GET['action'] ?? '') === 'fetch') {
                                     ${formatDate(item.timestamp)}
                                     ${item.status === 'acknowledged' ? '• Acknowledged' : ''}
                                     ${item.status === 'resolved' ? '• Resolved' : ''}
+                                </div>
+                            </div>
+                        </div>`;
+                } else if (item.type === 'system') {
+                    return `
+                        <div class="timeline-item">
+                            <div class="timeline-icon" style="background: #dbeafe;">🔧</div>
+                            <div class="timeline-content">
+                                <div class="timeline-title">
+                                    ${escapeHtml(item.action.replace(/_/g, ' '))}
+                                    <span class="timeline-badge info">System</span>
+                                </div>
+                                <div class="timeline-desc">${escapeHtml(item.message)}</div>
+                                <div class="timeline-meta">
+                                    ${formatDate(item.timestamp)}
+                                    • By: ${escapeHtml(item.user)}
+                                    ${item.ip ? `• IP: ${escapeHtml(item.ip)}` : ''}
                                 </div>
                             </div>
                         </div>`;

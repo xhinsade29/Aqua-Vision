@@ -2454,8 +2454,18 @@ include __DIR__ . '/../../assets/navigation.php';
 // ============================================================================
 
 /**
- * Handle form submissions
+ * Log system activity
  */
+function logActivity($conn, $action, $details = '') {
+    $userId = $_SESSION['user_id'] ?? null;
+    $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+    
+    $stmt = $conn->prepare("INSERT INTO system_logs (user_id, action, details, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("issss", $userId, $action, $details, $ipAddress, $userAgent);
+    $stmt->execute();
+    $stmt->close();
+}
 function handleFormSubmission($conn, $data) {
     $action = $data['action'] ?? '';
     
@@ -2602,6 +2612,12 @@ function handleDeviceSubmission($conn, $data) {
             } else {
                 $_SESSION['success'] = 'Device updated successfully';
             }
+            // Log the activity
+            $logAction = isset($data['device_id']) ? 'DEVICE_UPDATE' : 'DEVICE_CREATE';
+            $logDetails = isset($data['device_id']) 
+                ? "Updated device: {$deviceName} (ID: {$data['device_id']}, Status: {$status})"
+                : "Created new device: {$deviceName} (Status: {$status})";
+            logActivity($conn, $logAction, $logDetails);
         } else {
             throw new Exception('Failed to update device: ' . $conn->error);
         }
@@ -2616,6 +2632,8 @@ function handleDeviceSubmission($conn, $data) {
             } else {
                 $_SESSION['success'] = 'Device added successfully';
             }
+            // Log the activity
+            logActivity($conn, 'DEVICE_CREATE', "Created new device: {$deviceName} (Status: {$status})");
         } else {
             throw new Exception('Failed to add device: ' . $conn->error);
         }
@@ -2649,6 +2667,8 @@ function handleLocationSubmission($conn, $data) {
     
     if ($stmt->execute()) {
         $_SESSION['success'] = 'Location updated successfully';
+        // Log the activity
+        logActivity($conn, 'LOCATION_UPDATE', "Updated location: {$locationName} (ID: {$locationId}, Section: {$riverSection})");
     } else {
         throw new Exception('Failed to update location: ' . $conn->error);
     }
@@ -2682,6 +2702,8 @@ function handleDeviceDelete($conn, $data) {
     
     if ($stmt->execute()) {
         $_SESSION['success'] = 'Device deleted successfully';
+        // Log the activity
+        logActivity($conn, 'DEVICE_DELETE', "Deleted device ID: {$deviceId}");
     } else {
         throw new Exception('Failed to delete device: ' . $conn->error);
     }

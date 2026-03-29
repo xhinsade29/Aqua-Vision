@@ -103,6 +103,17 @@ if (($_GET['action'] ?? '') === 'simulate' && $_SERVER['REQUEST_METHOD'] === 'PO
 
     $conn->query("UPDATE devices SET last_active=NOW() WHERE device_id=$did");
 
+    // Log simulation activity
+    $userId = $_SESSION['user_id'] ?? null;
+    $userName = $_SESSION['username'] ?? 'Unknown';
+    $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+    $logDetails = "User {$userName} simulated readings for device {$dev['device_name']} (ID: {$did})";
+    $stmt = $conn->prepare("INSERT INTO system_logs (user_id, action, details, ip_address, user_agent) VALUES (?, 'SENSOR_SIMULATION', ?, ?, ?)");
+    $stmt->bind_param("isss", $userId, $logDetails, $ipAddress, $userAgent);
+    $stmt->execute();
+    $stmt->close();
+
     // Fetch fresh data for syncing
     $syncData = _build_full_fetch($conn);
     $conn->close();
