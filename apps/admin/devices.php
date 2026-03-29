@@ -477,6 +477,8 @@ include __DIR__ . '/../../assets/navigation.php';
                                 <select name="status" id="deviceStatus" required onchange="toggleMapAccess()">
                                     <option value="active" <?= $device['status'] === 'active' ? 'selected' : '' ?>>Active</option>
                                     <option value="maintenance" <?= $device['status'] === 'maintenance' ? 'selected' : '' ?>>Maintenance</option>
+                                    <option value="displaced" <?= $device['status'] === 'displaced' ? 'selected' : '' ?>>Displaced (Out of Position)</option>
+                                    <option value="damaged" <?= $device['status'] === 'damaged' ? 'selected' : '' ?>>Damaged (Beyond Repair)</option>
                                     <option value="inactive" <?= $device['status'] === 'inactive' ? 'selected' : '' ?>>Inactive</option>
                                 </select>
                             </div>
@@ -652,7 +654,9 @@ include __DIR__ . '/../../assets/navigation.php';
                     if (!otherDevice.latitude || !otherDevice.longitude) return;
                     
                     const deviceStatusColor = otherDevice.status === 'active' ? '#16a34a' : 
-                                            otherDevice.status === 'maintenance' ? '#d97706' : '#dc2626';
+                                            otherDevice.status === 'maintenance' ? '#d97706' : 
+                                            otherDevice.status === 'displaced' ? '#7c3aed' : 
+                                            otherDevice.status === 'damaged' ? '#1f2937' : '#dc2626';
                     
                     const otherDeviceMarker = L.marker([otherDevice.latitude, otherDevice.longitude], {
                         icon: L.divIcon({
@@ -716,8 +720,124 @@ include __DIR__ . '/../../assets/navigation.php';
                     document.getElementById('latitude').value = lat.toFixed(6);
                     document.getElementById('longitude').value = lng.toFixed(6);
                     
-                    // Auto-detect river section
-                    detectRiverSection(lat, lng);
+                    // Check if device is close to the river
+                    const isNearRiver = checkDistanceToRiver(lat, lng);
+                    
+                    if (!isNearRiver) {
+                        // Auto-set status to displaced if too far from river
+                        const statusSelect = document.getElementById('deviceStatus');
+                        statusSelect.value = 'displaced';
+                        
+                        // Show warning
+                        showLocationWarning('Device is too far from Mangima River. Status auto-changed to "Displaced".');
+                        
+                        // Update stream assigned field
+                        document.getElementById('locationName').value = 'Out of River Bounds';
+                    } else {
+                        // Auto-detect river section
+                        detectRiverSection(lat, lng);
+                    }
+                    
+                    // Trigger status change to update map access
+                    toggleMapAccess();
+                }
+                
+                function checkDistanceToRiver(lat, lng) {
+                    // Mangima River coordinates
+                    const riverCoords = [
+                        [8.345958, 124.898607], [8.346955, 124.899036], [8.347603, 124.898081],
+                        [8.349471, 124.896461], [8.349216, 124.895474], [8.349535, 124.894755],
+                        [8.348909, 124.894058], [8.349881, 124.893209], [8.352050, 124.889584],
+                        [8.351096, 124.889497], [8.351978, 124.888415], [8.352369, 124.887056],
+                        [8.352210, 124.886676], [8.352643, 124.886427], [8.353468, 124.884863],
+                        [8.355492, 124.883376], [8.356292, 124.881332], [8.358270, 124.881140],
+                        [8.368532, 124.875713], [8.373977, 124.876690], [8.381657, 124.897203],
+                        [8.394810, 124.903483], [8.396343, 124.907500], [8.399906, 124.911121],
+                        [8.400757, 124.910773], [8.401407, 124.910581], [8.401636, 124.910868],
+                        [8.401774, 124.911007], [8.402125, 124.911168], [8.402489, 124.911218],
+                        [8.402853, 124.911196], [8.403020, 124.911119], [8.403792, 124.910506],
+                        [8.405310, 124.909972], [8.405901, 124.909983], [8.406337, 124.910087],
+                        [8.406533, 124.910179], [8.406700, 124.910291], [8.406745, 124.910385],
+                        [8.406713, 124.910512], [8.405924, 124.911388], [8.405818, 124.911576],
+                        [8.405829, 124.911689], [8.405924, 124.911801], [8.406275, 124.911984],
+                        [8.406715, 124.912414], [8.407049, 124.912661], [8.409034, 124.913466],
+                        [8.409793, 124.913708], [8.410064, 124.913713], [8.410472, 124.913676],
+                        [8.411629, 124.913198], [8.412245, 124.912800], [8.412515, 124.912462],
+                        [8.412632, 124.911962], [8.413237, 124.909739], [8.413179, 124.909497]
+                    ];
+                    
+                    const MAX_DISTANCE_KM = 0.5; // 500 meters threshold
+                    
+                    let minDistance = Infinity;
+                    
+                    // Find minimum distance to any river point
+                    for (let i = 0; i < riverCoords.length; i++) {
+                        const distance = calculateDistance(lat, lng, riverCoords[i][0], riverCoords[i][1]);
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                        }
+                    }
+                    
+                    return minDistance <= MAX_DISTANCE_KM;
+                }
+                
+                function showLocationWarning(message) {
+                    // Remove existing warning if present
+                    const existingWarning = document.getElementById('location-warning');
+                    if (existingWarning) {
+                        existingWarning.remove();
+                    }
+                    
+                    // Create warning element
+                    const warning = document.createElement('div');
+                    warning.id = 'location-warning';
+                    warning.style.cssText = `
+                        position: absolute;
+                        top: 10px;
+                        left: 10px;
+                        right: 10px;
+                        background: #7c3aed;
+                        color: white;
+                        padding: 12px 16px;
+                        border-radius: 8px;
+                        font-size: 13px;
+                        font-weight: 600;
+                        text-align: center;
+                        z-index: 1000;
+                        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+                        animation: slideDown 0.3s ease-out;
+                    `;
+                    warning.innerHTML = `⚠️ ${message}`;
+                    
+                    // Add to map container
+                    const mapContainer = document.getElementById('device-location-map');
+                    if (mapContainer && mapContainer.parentNode) {
+                        mapContainer.parentNode.style.position = 'relative';
+                        mapContainer.parentNode.appendChild(warning);
+                        
+                        // Auto-hide after 5 seconds
+                        setTimeout(() => {
+                            if (warning.parentNode) {
+                                warning.style.animation = 'slideDown 0.3s ease-out reverse';
+                                setTimeout(() => {
+                                    if (warning.parentNode) {
+                                        warning.parentNode.removeChild(warning);
+                                    }
+                                }, 300);
+                            }
+                        }, 5000);
+                    }
+                }
+                
+                function calculateDistance(lat1, lng1, lat2, lng2) {
+                    const R = 6371; // Earth's radius in km
+                    const dLat = (lat2 - lat1) * Math.PI / 180;
+                    const dLng = (lng2 - lng1) * Math.PI / 180;
+                    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                              Math.sin(dLng/2) * Math.sin(dLng/2);
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                    return R * c;
                 }
                 
                 function detectRiverSection(lat, lng) {
@@ -828,12 +948,70 @@ include __DIR__ . '/../../assets/navigation.php';
                             from { transform: translateX(100%); opacity: 0; }
                             to { transform: translateX(0); opacity: 1; }
                         }
+                        @keyframes slideDown {
+                            from { transform: translateY(-100%); opacity: 0; }
+                            to { transform: translateY(0); opacity: 1; }
+                        }
                     `;
                     document.head.appendChild(pulseStyle);
                 }
                 
+                // Add status badge to map
+                updateMapStatusBadge();
+                
+                function updateMapStatusBadge() {
+                    const status = document.getElementById('deviceStatus').value;
+                    const statusColors = {
+                        'active': '#16a34a',
+                        'maintenance': '#d97706',
+                        'displaced': '#7c3aed',
+                        'damaged': '#1f2937',
+                        'inactive': '#dc2626'
+                    };
+                    const statusLabels = {
+                        'active': '● Active',
+                        'maintenance': '🔧 Maintenance',
+                        'displaced': '📍 Displaced',
+                        'damaged': '💔 Damaged',
+                        'inactive': '⚠️ Inactive'
+                    };
+                    
+                    // Remove existing badge
+                    const existingBadge = document.getElementById('map-status-badge');
+                    if (existingBadge) {
+                        existingBadge.remove();
+                    }
+                    
+                    // Create status badge
+                    const badge = document.createElement('div');
+                    badge.id = 'map-status-badge';
+                    badge.style.cssText = `
+                        position: absolute;
+                        top: 10px;
+                        left: 10px;
+                        background: ${statusColors[status]};
+                        color: white;
+                        padding: 8px 14px;
+                        border-radius: 20px;
+                        font-size: 12px;
+                        font-weight: 600;
+                        z-index: 1000;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                        font-family: 'Inter', sans-serif;
+                    `;
+                    badge.textContent = statusLabels[status];
+                    
+                    // Add to map container
+                    const mapContainer = document.getElementById('device-location-map');
+                    if (mapContainer && mapContainer.parentNode) {
+                        mapContainer.parentNode.style.position = 'relative';
+                        mapContainer.parentNode.appendChild(badge);
+                    }
+                }
+                
                 // Initialize map access based on device status
                 toggleMapAccess();
+                updateMapStatusBadge();
                 
                 function toggleMapAccess() {
                     const status = document.getElementById('deviceStatus').value;
@@ -894,6 +1072,10 @@ include __DIR__ . '/../../assets/navigation.php';
                         
                         if (status === 'maintenance') {
                             statusMsg.innerHTML = '🔧 <strong>Device Under Maintenance</strong><br><small>Location assignment is disabled during maintenance</small>';
+                        } else if (status === 'displaced') {
+                            statusMsg.innerHTML = '📍 <strong>Device Displaced</strong><br><small>Device is out of assigned position - location locked</small>';
+                        } else if (status === 'damaged') {
+                            statusMsg.innerHTML = '💔 <strong>Device Damaged</strong><br><small>Device is beyond repair - location assignment disabled</small>';
                         } else if (status === 'inactive') {
                             statusMsg.innerHTML = '⚠️ <strong>Device Inactive</strong><br><small>Location assignment is disabled for inactive devices</small>';
                         }
@@ -903,6 +1085,9 @@ include __DIR__ . '/../../assets/navigation.php';
                         longitudeField.value = '';
                         streamAssignedField.value = '';
                     }
+                    
+                    // Update status badge on map
+                    updateMapStatusBadge();
                 }
             </script>
             
@@ -954,6 +1139,14 @@ include __DIR__ . '/../../assets/navigation.php';
                             <div style="display: flex; align-items: center; gap: 0.25rem;">
                                 <span style="width: 8px; height: 8px; border-radius: 50%; background: #3b82f6;"></span>
                                 Maintenance
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #7c3aed;"></span>
+                                Displaced
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #1f2937;"></span>
+                                Damaged
                             </div>
                             <div style="display: flex; align-items: center; gap: 0.25rem;">
                                 <span style="width: 8px; height: 8px; border-radius: 50%; background: #dc2626;"></span>
@@ -1228,6 +1421,8 @@ include __DIR__ . '/../../assets/navigation.php';
                     const colors = {
                         'active': '#059669',
                         'maintenance': '#3b82f6', 
+                        'displaced': '#7c3aed',
+                        'damaged': '#1f2937',
                         'inactive': '#dc2626'
                     };
                     return colors[status] || '#9ca3af';
