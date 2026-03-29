@@ -406,43 +406,332 @@ include __DIR__ . '/../../assets/navigation.php';
                     <h3>Add New Device</h3>
                 </div>
                 <div class="card-body" style="padding: 1.25rem;">
-                    <form method="POST" action="">
-                        <input type="hidden" name="action" value="add">
-                        
-                        <div class="form-group">
-                            <label>Device Name *</label>
-                            <input type="text" name="device_name" value="<?= $device ? htmlspecialchars($device['device_name']) : '' ?>" required>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 300px; gap: 1.5rem;">
+                        <!-- Device Location Map (Only for Active) -->
+                        <div id="addDeviceMapContainer" style="display: none;">
+                            <div id="add-device-location-map" style="height: 400px; border-radius: var(--radius); border: 1px solid var(--gray-200);"></div>
+                            <p style="font-size: 0.75rem; color: var(--gray-500); margin-top: 0.5rem;">
+                                💡 Click on the map to set device location, or drag the marker
+                            </p>
                         </div>
                         
-                        <div class="form-group">
-                            <label>Status</label>
-                            <select name="status">
-                                <option value="active">Active</option>
-                                <option value="maintenance">Maintenance</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
+                        <!-- Map Placeholder for Non-Active -->
+                        <div id="addDeviceMapPlaceholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 400px; border-radius: var(--radius); border: 2px dashed var(--gray-300); background: #f8fafc;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">📍</div>
+                            <p style="font-size: 0.875rem; color: var(--gray-500); text-align: center; padding: 0 1rem;">
+                                Select "Active" status to enable<br>map location assignment
+                            </p>
                         </div>
                         
-                        <div class="form-group">
-                            <label>Location</label>
-                            <select name="location_id">
-                                <option value="">Unassigned</option>
-                                <?php
-                                $locationsResult = $conn->query("SELECT location_id, location_name FROM locations ORDER BY location_name");
-                                while ($loc = $locationsResult->fetch_assoc()):
-                                ?>
-                                    <option value="<?= $loc['location_id'] ?>">
-                                        <?= htmlspecialchars($loc['location_name']) ?>
-                                    </option>
-                                <?php endwhile; ?>
-                            </select>
-                        </div>
+                        <!-- Device Form -->
+                        <form method="POST" action="" style="grid-column: span 2;">
+                            <input type="hidden" name="action" value="add">
+                            
+                            <div class="form-group">
+                                <label>Device Name *</label>
+                                <input type="text" name="device_name" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Status</label>
+                                <select name="status" id="addDeviceStatus" required onchange="toggleAddDeviceMap()">
+                                    <option value="active">Active</option>
+                                    <option value="maintenance">Maintenance</option>
+                                    <option value="inactive">Inactive</option>
+                                    <option value="offline">Offline</option>
+                                    <option value="unassigned">Unassigned</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Device Condition</label>
+                                <select name="device_condition" id="addDeviceCondition">
+                                    <option value="normal">Normal</option>
+                                    <option value="displaced">Displaced (Out of Position)</option>
+                                    <option value="damaged">Damaged</option>
+                                    <option value="malfunctioning">Malfunctioning</option>
+                                </select>
+                                <small style="color: var(--gray-500);">Physical state of the device</small>
+                            </div>
+                            
+                            <div id="addDeviceLocationFields" style="display: none;">
+                                <div class="form-group">
+                                    <label>Latitude</label>
+                                    <input type="number" id="addLatitude" name="latitude" step="0.000001" value="8.369297" readonly>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Longitude</label>
+                                    <input type="number" id="addLongitude" name="longitude" step="0.000001" value="124.876785" readonly>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Stream Assigned</label>
+                                    <input type="text" id="addLocationName" name="location_name" value="" readonly>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+                                <button type="submit" class="btn btn-primary">Save Device</button>
+                                <a href="?action=list" class="btn btn-secondary">Cancel</a>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <script>
+                        let addDeviceMap = null;
+                        let addDeviceMarker = null;
                         
-                        <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
-                            <button type="submit" class="btn btn-primary">Save Device</button>
-                            <a href="?action=list" class="btn btn-secondary">Cancel</a>
-                        </div>
-                    </form>
+                        function initAddDeviceMap() {
+                            if (addDeviceMap) return; // Already initialized
+                            
+                            // Default to midstream start point
+                            const defaultLat = 8.369297;
+                            const defaultLng = 124.876785;
+                            
+                            addDeviceMap = L.map('add-device-location-map').setView([defaultLat, defaultLng], 13);
+                            
+                            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                                attribution: '© OpenStreetMap contributors',
+                                subdomains: 'abcd',
+                                maxZoom: 19
+                            }).addTo(addDeviceMap);
+                            
+                            // Add river polyline
+                            const riverCoords = [
+                                [8.345958, 124.898607], [8.346955, 124.899036], [8.347603, 124.898081],
+                                [8.349471, 124.896461], [8.349216, 124.895474], [8.349535, 124.894755],
+                                [8.348909, 124.894058], [8.349881, 124.893209], [8.352050, 124.889584],
+                                [8.351096, 124.889497], [8.351978, 124.888415], [8.352369, 124.887056],
+                                [8.352210, 124.886676], [8.352643, 124.886427], [8.353468, 124.884863],
+                                [8.355492, 124.883376], [8.356292, 124.881332], [8.358270, 124.881140],
+                                [8.368532, 124.875713], [8.373977, 124.876690], [8.381657, 124.897203],
+                                [8.394810, 124.903483], [8.396343, 124.907500], [8.399906, 124.911121],
+                                [8.400757, 124.910773], [8.401407, 124.910581], [8.401636, 124.910868],
+                                [8.401774, 124.911007], [8.402125, 124.911168], [8.402489, 124.911218],
+                                [8.402853, 124.911196], [8.403020, 124.911119], [8.403792, 124.910506],
+                                [8.405310, 124.909972], [8.405901, 124.909983], [8.406337, 124.910087],
+                                [8.406533, 124.910179], [8.406700, 124.910291], [8.406745, 124.910385],
+                                [8.406713, 124.910512], [8.405924, 124.911388], [8.405818, 124.911576],
+                                [8.405829, 124.911689], [8.405924, 124.911801], [8.406275, 124.911984],
+                                [8.406715, 124.912414], [8.407049, 124.912661], [8.409034, 124.913466],
+                                [8.409793, 124.913708], [8.410064, 124.913713], [8.410472, 124.913676],
+                                [8.411629, 124.913198], [8.412245, 124.912800], [8.412515, 124.912462],
+                                [8.412632, 124.911962], [8.413237, 124.909739], [8.413179, 124.909497]
+                            ];
+                            
+                            L.polyline(riverCoords, {
+                                color: '#3b82f6',
+                                weight: 4,
+                                opacity: 0.85
+                            }).addTo(addDeviceMap);
+                            
+                            // Add existing devices to prevent duplication
+                            const existingDevices = <?= json_encode($devices, JSON_NUMERIC_CHECK) ?>;
+                            existingDevices.forEach(device => {
+                                if (!device.latitude || !device.longitude) return;
+                                
+                                const deviceStatusColor = device.device_condition === 'displaced' ? '#7c3aed' : 
+                                                        device.device_condition === 'damaged' ? '#1f2937' : 
+                                                        device.device_condition === 'malfunctioning' ? '#d97706' : 
+                                                        device.status === 'active' ? '#16a34a' : 
+                                                        device.status === 'maintenance' ? '#3b82f6' : '#9ca3af';
+                                
+                                L.marker([device.latitude, device.longitude], {
+                                    icon: L.divIcon({
+                                        html: `<div style="position: relative; width: 24px; height: 24px;">
+                                                <div style="position: absolute; inset: 0; border-radius: 50%; background: ${deviceStatusColor}; opacity: 0.3;"></div>
+                                                <div style="position: absolute; inset: 2px; border-radius: 50%; background: ${deviceStatusColor}; border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>
+                                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 10px; font-weight: bold;">📡</div>
+                                            </div>`,
+                                        iconSize: [24, 24],
+                                        iconAnchor: [12, 12],
+                                        className: ''
+                                    })
+                                }).addTo(addDeviceMap).bindPopup(`
+                                    <div style="font-family: 'Inter', sans-serif; min-width: 180px;">
+                                        <div style="font-weight: 600; margin-bottom: 4px;">${device.device_name}</div>
+                                        <div style="font-size: 11px; color: #6b7280;">Status: ${device.status}</div>
+                                        ${device.device_condition && device.device_condition !== 'normal' ? `<div style="font-size: 11px; color: #7c3aed; margin-top: 2px;">⚠️ ${device.device_condition}</div>` : ''}
+                                        <div style="font-size: 10px; color: #dc2626; margin-top: 4px;">⚠️ Existing device</div>
+                                    </div>
+                                `);
+                            });
+                            
+                            // Add draggable marker
+                            addDeviceMarker = L.marker([defaultLat, defaultLng], { 
+                                draggable: true,
+                                icon: L.divIcon({
+                                    html: `<div style="position: relative; width: 30px; height: 30px;">
+                                            <div style="position: absolute; inset: 0; border-radius: 50%; background: #1a56db; opacity: 0.2; animation: pulse 2s ease-out infinite"></div>
+                                            <div style="position: absolute; inset: 4px; border-radius: 50%; background: #1a56db; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.3); cursor: move;"></div>
+                                            <div style="position: absolute; top: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #1a56db;"></div>
+                                        </div>`,
+                                    iconSize: [30, 30],
+                                    iconAnchor: [15, 30],
+                                    className: ''
+                                })
+                            }).addTo(addDeviceMap);
+                            
+                            // Update form when marker is dragged
+                            addDeviceMarker.on('dragend', function(e) {
+                                const pos = e.target.getLatLng();
+                                updateAddDeviceLocation(pos.lat, pos.lng);
+                            });
+                            
+                            // Update marker when map is clicked
+                            addDeviceMap.on('click', function(e) {
+                                addDeviceMarker.setLatLng(e.latlng);
+                                updateAddDeviceLocation(e.latlng.lat, e.latlng.lng);
+                            });
+                            
+                            // Initial location update
+                            updateAddDeviceLocation(defaultLat, defaultLng);
+                        }
+                        
+                        function updateAddDeviceLocation(lat, lng) {
+                            document.getElementById('addLatitude').value = lat.toFixed(6);
+                            document.getElementById('addLongitude').value = lng.toFixed(6);
+                            
+                            // Check if near river
+                            const isNearRiver = checkAddDeviceDistanceToRiver(lat, lng);
+                            
+                            if (!isNearRiver) {
+                                document.getElementById('addLocationName').value = 'Out of River Bounds';
+                                // Show warning but don't auto-change status for add form
+                                showAddDeviceWarning('⚠️ Warning: This location is far from Mangima River');
+                            } else {
+                                // Detect river section
+                                const midstreamStart = { lat: 8.369297, lng: 124.876785 };
+                                const midstreamEnd = { lat: 8.394873, lng: 124.903068 };
+                                
+                                let riverSectionDisplay = '';
+                                if (lng < midstreamStart.lng) {
+                                    riverSectionDisplay = 'Upstream';
+                                } else if (lng >= midstreamStart.lng && lng <= midstreamEnd.lng) {
+                                    riverSectionDisplay = 'Midstream';
+                                } else {
+                                    riverSectionDisplay = 'Downstream';
+                                }
+                                
+                                document.getElementById('addLocationName').value = `${riverSectionDisplay} Section`;
+                            }
+                        }
+                        
+                        function checkAddDeviceDistanceToRiver(lat, lng) {
+                            const riverCoords = [
+                                [8.345958, 124.898607], [8.346955, 124.899036], [8.347603, 124.898081],
+                                [8.349471, 124.896461], [8.349216, 124.895474], [8.349535, 124.894755],
+                                [8.348909, 124.894058], [8.349881, 124.893209], [8.352050, 124.889584],
+                                [8.351096, 124.889497], [8.351978, 124.888415], [8.352369, 124.887056],
+                                [8.352210, 124.886676], [8.352643, 124.886427], [8.353468, 124.884863],
+                                [8.355492, 124.883376], [8.356292, 124.881332], [8.358270, 124.881140],
+                                [8.368532, 124.875713], [8.373977, 124.876690], [8.381657, 124.897203],
+                                [8.394810, 124.903483], [8.396343, 124.907500], [8.399906, 124.911121],
+                                [8.400757, 124.910773], [8.401407, 124.910581], [8.401636, 124.910868],
+                                [8.401774, 124.911007], [8.402125, 124.911168], [8.402489, 124.911218],
+                                [8.402853, 124.911196], [8.403020, 124.911119], [8.403792, 124.910506],
+                                [8.405310, 124.909972], [8.405901, 124.909983], [8.406337, 124.910087],
+                                [8.406533, 124.910179], [8.406700, 124.910291], [8.406745, 124.910385],
+                                [8.406713, 124.910512], [8.405924, 124.911388], [8.405818, 124.911576],
+                                [8.405829, 124.911689], [8.405924, 124.911801], [8.406275, 124.911984],
+                                [8.406715, 124.912414], [8.407049, 124.912661], [8.409034, 124.913466],
+                                [8.409793, 124.913708], [8.410064, 124.913713], [8.410472, 124.913676],
+                                [8.411629, 124.913198], [8.412245, 124.912800], [8.412515, 124.912462],
+                                [8.412632, 124.911962], [8.413237, 124.909739], [8.413179, 124.909497]
+                            ];
+                            
+                            const MAX_DISTANCE_KM = 0.5;
+                            let minDistance = Infinity;
+                            
+                            for (let i = 0; i < riverCoords.length; i++) {
+                                const distance = calculateAddDeviceDistance(lat, lng, riverCoords[i][0], riverCoords[i][1]);
+                                if (distance < minDistance) minDistance = distance;
+                            }
+                            
+                            return minDistance <= MAX_DISTANCE_KM;
+                        }
+                        
+                        function calculateAddDeviceDistance(lat1, lng1, lat2, lng2) {
+                            const R = 6371;
+                            const dLat = (lat2 - lat1) * Math.PI / 180;
+                            const dLng = (lng2 - lng1) * Math.PI / 180;
+                            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                                      Math.sin(dLng/2) * Math.sin(dLng/2);
+                            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                            return R * c;
+                        }
+                        
+                        function showAddDeviceWarning(message) {
+                            const existingWarning = document.getElementById('add-device-warning');
+                            if (existingWarning) existingWarning.remove();
+                            
+                            const warning = document.createElement('div');
+                            warning.id = 'add-device-warning';
+                            warning.style.cssText = `
+                                position: absolute;
+                                top: 10px;
+                                left: 10px;
+                                right: 10px;
+                                background: #f59e0b;
+                                color: white;
+                                padding: 10px 16px;
+                                border-radius: 8px;
+                                font-size: 12px;
+                                font-weight: 600;
+                                text-align: center;
+                                z-index: 1000;
+                                box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+                            `;
+                            warning.innerHTML = message;
+                            
+                            const mapContainer = document.getElementById('add-device-location-map');
+                            if (mapContainer && mapContainer.parentNode) {
+                                mapContainer.parentNode.style.position = 'relative';
+                                mapContainer.parentNode.appendChild(warning);
+                                
+                                setTimeout(() => {
+                                    if (warning.parentNode) warning.parentNode.removeChild(warning);
+                                }, 4000);
+                            }
+                        }
+                        
+                        function toggleAddDeviceMap() {
+                            const status = document.getElementById('addDeviceStatus').value;
+                            const mapContainer = document.getElementById('addDeviceMapContainer');
+                            const mapPlaceholder = document.getElementById('addDeviceMapPlaceholder');
+                            const locationFields = document.getElementById('addDeviceLocationFields');
+                            
+                            if (status === 'active') {
+                                // Show map and location fields
+                                mapContainer.style.display = 'block';
+                                mapPlaceholder.style.display = 'none';
+                                locationFields.style.display = 'block';
+                                
+                                // Initialize map if not already done
+                                setTimeout(() => {
+                                    initAddDeviceMap();
+                                    if (addDeviceMap) addDeviceMap.invalidateSize();
+                                }, 100);
+                            } else {
+                                // Hide map and location fields
+                                mapContainer.style.display = 'none';
+                                mapPlaceholder.style.display = 'flex';
+                                locationFields.style.display = 'none';
+                                
+                                // Clear location fields
+                                document.getElementById('addLatitude').value = '';
+                                document.getElementById('addLongitude').value = '';
+                                document.getElementById('addLocationName').value = '';
+                            }
+                        }
+                        
+                        // Initialize on page load
+                        document.addEventListener('DOMContentLoaded', function() {
+                            toggleAddDeviceMap();
+                        });
+                    </script>
                 </div>
             </div>
             
@@ -477,10 +766,21 @@ include __DIR__ . '/../../assets/navigation.php';
                                 <select name="status" id="deviceStatus" required onchange="toggleMapAccess()">
                                     <option value="active" <?= $device['status'] === 'active' ? 'selected' : '' ?>>Active</option>
                                     <option value="maintenance" <?= $device['status'] === 'maintenance' ? 'selected' : '' ?>>Maintenance</option>
-                                    <option value="displaced" <?= $device['status'] === 'displaced' ? 'selected' : '' ?>>Displaced (Out of Position)</option>
-                                    <option value="damaged" <?= $device['status'] === 'damaged' ? 'selected' : '' ?>>Damaged (Beyond Repair)</option>
                                     <option value="inactive" <?= $device['status'] === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                                    <option value="offline" <?= $device['status'] === 'offline' ? 'selected' : '' ?>>Offline</option>
+                                    <option value="unassigned" <?= $device['status'] === 'unassigned' ? 'selected' : '' ?>>Unassigned</option>
                                 </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Device Condition</label>
+                                <select name="device_condition" id="deviceCondition">
+                                    <option value="normal" <?= ($device['device_condition'] ?? 'normal') === 'normal' ? 'selected' : '' ?>>Normal</option>
+                                    <option value="displaced" <?= ($device['device_condition'] ?? '') === 'displaced' ? 'selected' : '' ?>>Displaced (Out of Position)</option>
+                                    <option value="damaged" <?= ($device['device_condition'] ?? '') === 'damaged' ? 'selected' : '' ?>>Damaged</option>
+                                    <option value="malfunctioning" <?= ($device['device_condition'] ?? '') === 'malfunctioning' ? 'selected' : '' ?>>Malfunctioning</option>
+                                </select>
+                                <small style="color: var(--gray-500);">Physical state of the device</small>
                             </div>
                             
                             <div class="form-group">
@@ -634,11 +934,9 @@ include __DIR__ . '/../../assets/navigation.php';
                         <div style="font-family: 'Inter', sans-serif; min-width: 150px;">
                             <div style="font-weight: 600; margin-bottom: 4px;">${loc.location_name}</div>
                             <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">
-                                ${loc.river_section.charAt(0).toUpperCase() + loc.river_section.slice(1)} Section
-                            </div>
-                            <div style="font-size: 10px; font-family: monospace; color: #9ca3af;">
                                 ${loc.latitude.toFixed(5)}°N, ${loc.longitude.toFixed(5)}°E
                             </div>
+                            <div style="font-size: 11px; color: #1a56db;">Click to select location</div>
                         </div>
                     `);
                 });
@@ -653,17 +951,18 @@ include __DIR__ . '/../../assets/navigation.php';
                     // Skip devices without coordinates
                     if (!otherDevice.latitude || !otherDevice.longitude) return;
                     
-                    const deviceStatusColor = otherDevice.status === 'active' ? '#16a34a' : 
-                                            otherDevice.status === 'maintenance' ? '#d97706' : 
-                                            otherDevice.status === 'displaced' ? '#7c3aed' : 
-                                            otherDevice.status === 'damaged' ? '#1f2937' : '#dc2626';
+                    const deviceStatusColor = otherDevice.device_condition === 'displaced' ? '#7c3aed' : 
+                                            otherDevice.device_condition === 'damaged' ? '#1f2937' : 
+                                            otherDevice.device_condition === 'malfunctioning' ? '#d97706' : 
+                                            otherDevice.status === 'active' ? '#16a34a' : 
+                                            otherDevice.status === 'maintenance' ? '#3b82f6' : '#9ca3af';
                     
                     const otherDeviceMarker = L.marker([otherDevice.latitude, otherDevice.longitude], {
                         icon: L.divIcon({
                             html: `<div style="position: relative; width: 24px; height: 24px;">
                                     <div style="position: absolute; inset: 0; border-radius: 50%; background: ${deviceStatusColor}; opacity: 0.3;"></div>
                                     <div style="position: absolute; inset: 2px; border-radius: 50%; background: ${deviceStatusColor}; border: 2px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>
-                                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 10px; font-weight: bold;">📡</div>
+                                    <div style="position: absolute; top: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid ${deviceStatusColor};"></div>
                                 </div>`,
                             iconSize: [24, 24],
                             iconAnchor: [12, 12],
@@ -674,16 +973,12 @@ include __DIR__ . '/../../assets/navigation.php';
                     otherDeviceMarker.bindPopup(`
                         <div style="font-family: 'Inter', sans-serif; min-width: 180px;">
                             <div style="font-weight: 600; margin-bottom: 4px; color: ${deviceStatusColor};">
-                                📡 ${otherDevice.device_name}
+                                ${otherDevice.device_name}
                             </div>
-                            <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">
-                                Status: <span style="text-transform: capitalize; font-weight: 500;">${otherDevice.status}</span>
-                            </div>
-                            <div style="font-size: 10px; font-family: monospace; color: #9ca3af; margin-bottom: 4px;">
-                                ${parseFloat(otherDevice.latitude).toFixed(5)}°N, ${parseFloat(otherDevice.longitude).toFixed(5)}°E
-                            </div>
-                            <div style="font-size: 10px; color: #dc2626; font-weight: 500; border-top: 1px solid #e5e7eb; padding-top: 4px;">
-                                ⚠️ Avoid placing new device too close
+                            <div style="font-size: 11px; color: #6b7280;">Status: ${otherDevice.status}</div>
+                            ${otherDevice.device_condition && otherDevice.device_condition !== 'normal' ? `<div style="font-size: 11px; color: #7c3aed; margin-top: 2px;">${otherDevice.device_condition}</div>` : ''}
+                            <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;">
+                                ${otherDevice.river_section ? otherDevice.river_section : 'No section'}
                             </div>
                         </div>
                     `);
@@ -1269,8 +1564,10 @@ include __DIR__ . '/../../assets/navigation.php';
             <?php
             // Calculate device statistics
             $statusCounts = [
-                'active' => 0, 'maintenance' => 0, 'displaced' => 0,
-                'damaged' => 0, 'inactive' => 0
+                'active' => 0, 'maintenance' => 0, 'inactive' => 0, 'offline' => 0, 'unassigned' => 0
+            ];
+            $conditionCounts = [
+                'normal' => 0, 'displaced' => 0, 'damaged' => 0, 'malfunctioning' => 0
             ];
             $sectionCounts = [
                 'upstream' => 0, 'midstream' => 0, 'downstream' => 0,
@@ -1281,6 +1578,11 @@ include __DIR__ . '/../../assets/navigation.php';
                 $status = $device['status'] ?? 'inactive';
                 if (isset($statusCounts[$status])) {
                     $statusCounts[$status]++;
+                }
+                
+                $condition = $device['device_condition'] ?? 'normal';
+                if (isset($conditionCounts[$condition])) {
+                    $conditionCounts[$condition]++;
                 }
                 
                 $section = $device['river_section'] ?? '';
@@ -1302,21 +1604,42 @@ include __DIR__ . '/../../assets/navigation.php';
                             <div style="font-size: 1.5rem; font-weight: 700; color: #16a34a;"><?= $statusCounts['active'] ?></div>
                             <div style="font-size: 0.75rem; color: var(--gray-500);">Active</div>
                         </div>
-                        <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #d97706;">
-                            <div style="font-size: 1.5rem; font-weight: 700; color: #d97706;"><?= $statusCounts['maintenance'] ?></div>
+                        <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #3b82f6;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #3b82f6;"><?= $statusCounts['maintenance'] ?></div>
                             <div style="font-size: 0.75rem; color: var(--gray-500);">Maintenance</div>
                         </div>
+                        <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #dc2626;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #dc2626;"><?= $statusCounts['inactive'] ?></div>
+                            <div style="font-size: 0.75rem; color: var(--gray-500);">Inactive</div>
+                        </div>
+                        <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #9ca3af;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #9ca3af;"><?= $statusCounts['offline'] + $statusCounts['unassigned'] ?></div>
+                            <div style="font-size: 0.75rem; color: var(--gray-500);">Offline/Unassigned</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Device Condition Summary -->
+                <div class="card" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
+                    <div class="card-header" style="padding: 1rem;">
+                        <h4 style="font-size: 0.875rem; color: var(--gray-600); margin: 0;">⚠️ Devices by Condition</h4>
+                    </div>
+                    <div style="padding: 1rem; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                        <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #16a34a;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #16a34a;"><?= $conditionCounts['normal'] ?></div>
+                            <div style="font-size: 0.75rem; color: var(--gray-500);">Normal</div>
+                        </div>
                         <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #7c3aed;">
-                            <div style="font-size: 1.5rem; font-weight: 700; color: #7c3aed;"><?= $statusCounts['displaced'] ?></div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #7c3aed;"><?= $conditionCounts['displaced'] ?></div>
                             <div style="font-size: 0.75rem; color: var(--gray-500);">Displaced</div>
                         </div>
                         <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #1f2937;">
-                            <div style="font-size: 1.5rem; font-weight: 700; color: #1f2937;"><?= $statusCounts['damaged'] ?></div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #1f2937;"><?= $conditionCounts['damaged'] ?></div>
                             <div style="font-size: 0.75rem; color: var(--gray-500);">Damaged</div>
                         </div>
-                        <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #dc2626; grid-column: span 2;">
-                            <div style="font-size: 1.5rem; font-weight: 700; color: #dc2626;"><?= $statusCounts['inactive'] ?></div>
-                            <div style="font-size: 0.75rem; color: var(--gray-500);">Inactive</div>
+                        <div style="text-align: center; padding: 0.75rem; background: white; border-radius: 8px; border-left: 3px solid #d97706;">
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #d97706;"><?= $conditionCounts['malfunctioning'] ?></div>
+                            <div style="font-size: 0.75rem; color: var(--gray-500);">Malfunctioning</div>
                         </div>
                     </div>
                 </div>
@@ -1424,13 +1747,19 @@ include __DIR__ . '/../../assets/navigation.php';
                                 <?php foreach ($devices as $device): ?>
                                     <tr class="device-row" 
                                         data-status="<?= $device['status'] ?>" 
+                                        data-condition="<?= $device['device_condition'] ?? 'normal' ?>"
                                         data-section="<?= $device['river_section'] ?? '' ?>"
                                         data-name="<?= strtolower(htmlspecialchars($device['device_name'])) ?>">
                                         <td><strong><?= htmlspecialchars($device['device_name']) ?></strong></td>
                                         <td>
-                                            <span class="badge badge-<?= $device['status'] === 'active' ? 'success' : ($device['status'] === 'maintenance' ? 'warning' : ($device['status'] === 'displaced' ? 'purple' : ($device['status'] === 'damaged' ? 'dark' : 'danger'))) ?>">
+                                            <span class="badge badge-<?= $device['status'] === 'active' ? 'success' : ($device['status'] === 'maintenance' ? 'warning' : 'danger') ?>">
                                                 <?= ucfirst($device['status']) ?>
                                             </span>
+                                            <?php if (($device['device_condition'] ?? 'normal') !== 'normal'): ?>
+                                                <span class="badge" style="background: <?= ($device['device_condition'] === 'displaced') ? '#7c3aed' : (($device['device_condition'] === 'damaged') ? '#1f2937' : '#d97706') ?>; margin-left: 4px;">
+                                                    <?= ucfirst($device['device_condition']) ?>
+                                                </span>
+                                            <?php endif; ?>
                                         </td>
                                         <td><?= $device['location_name'] ? htmlspecialchars($device['location_name']) : '—' ?></td>
                                         <td><?= $device['river_section'] ? ucfirst($device['river_section']) : '—' ?></td>
@@ -1562,6 +1891,11 @@ include __DIR__ . '/../../assets/navigation.php';
                                 <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">
                                     Status: <span style="color: ${color}; font-weight: 500;">${device.status}</span>
                                 </div>
+                                ${device.device_condition && device.device_condition !== 'normal' ? `
+                                    <div style="font-size: 12px; color: #7c3aed; margin-bottom: 4px;">
+                                        ⚠️ Condition: ${device.device_condition}
+                                    </div>
+                                ` : ''}
                                 ${device.location_name ? `
                                     <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">
                                         Location: ${device.location_name}
@@ -1669,6 +2003,11 @@ include __DIR__ . '/../../assets/navigation.php';
                             <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.5rem;">
                                 Status: <span class="badge badge-${device.status === 'active' ? 'success' : (device.status === 'maintenance' ? 'warning' : 'danger')}">${device.status.charAt(0).toUpperCase() + device.status.slice(1)}</span>
                             </div>
+                            ${device.device_condition && device.device_condition !== 'normal' ? `
+                                <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.5rem;">
+                                    Condition: <span class="badge" style="background: ${device.device_condition === 'displaced' ? '#7c3aed' : (device.device_condition === 'damaged' ? '#1f2937' : '#d97706')}; color: white;">${device.device_condition.charAt(0).toUpperCase() + device.device_condition.slice(1)}</span>
+                                </div>
+                            ` : ''}
                             ${device.location_name ? `
                                 <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.5rem;">
                                     Location: ${device.location_name}
@@ -1828,11 +2167,64 @@ function handleFormSubmission($conn, $data) {
 }
 
 /**
+ * Calculate distance between two coordinates using Haversine formula
+ */
+function calculateDistanceToRiver($lat, $lng) {
+    // Mangima River coordinates
+    $riverCoords = [
+        [8.345958, 124.898607], [8.346955, 124.899036], [8.347603, 124.898081],
+        [8.349471, 124.896461], [8.349216, 124.895474], [8.349535, 124.894755],
+        [8.348909, 124.894058], [8.349881, 124.893209], [8.352050, 124.889584],
+        [8.351096, 124.889497], [8.351978, 124.888415], [8.352369, 124.887056],
+        [8.352210, 124.886676], [8.352643, 124.886427], [8.353468, 124.884863],
+        [8.355492, 124.883376], [8.356292, 124.881332], [8.358270, 124.881140],
+        [8.368532, 124.875713], [8.373977, 124.876690], [8.381657, 124.897203],
+        [8.394810, 124.903483], [8.396343, 124.907500], [8.399906, 124.911121],
+        [8.400757, 124.910773], [8.401407, 124.910581], [8.401636, 124.910868],
+        [8.401774, 124.911007], [8.402125, 124.911168], [8.402489, 124.911218],
+        [8.402853, 124.911196], [8.403020, 124.911119], [8.403792, 124.910506],
+        [8.405310, 124.909972], [8.405901, 124.909983], [8.406337, 124.910087],
+        [8.406533, 124.910179], [8.406700, 124.910291], [8.406745, 124.910385],
+        [8.406713, 124.910512], [8.405924, 124.911388], [8.405818, 124.911576],
+        [8.405829, 124.911689], [8.405924, 124.911801], [8.406275, 124.911984],
+        [8.406715, 124.912414], [8.407049, 124.912661], [8.409034, 124.913466],
+        [8.409793, 124.913708], [8.410064, 124.913713], [8.410472, 124.913676],
+        [8.411629, 124.913198], [8.412245, 124.912800], [8.412515, 124.912462],
+        [8.412632, 124.911962], [8.413237, 124.909739], [8.413179, 124.909497]
+    ];
+    
+    $R = 6371; // Earth's radius in km
+    $maxDistance = 0.5; // 500 meters threshold
+    $minDistance = PHP_FLOAT_MAX;
+    
+    foreach ($riverCoords as $riverPoint) {
+        $lat2 = $riverPoint[0];
+        $lng2 = $riverPoint[1];
+        
+        $dLat = deg2rad($lat2 - $lat);
+        $dLng = deg2rad($lng2 - $lng);
+        
+        $a = sin($dLat/2) * sin($dLat/2) +
+             cos(deg2rad($lat)) * cos(deg2rad($lat2)) *
+             sin($dLng/2) * sin($dLng/2);
+        $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+        $distance = $R * $c;
+        
+        if ($distance < $minDistance) {
+            $minDistance = $distance;
+        }
+    }
+    
+    return $minDistance <= $maxDistance;
+}
+
+/**
  * Handle device add/edit
  */
 function handleDeviceSubmission($conn, $data) {
     $deviceName = trim($data['device_name'] ?? '');
     $status = $data['status'] ?? 'inactive';
+    $deviceCondition = $data['device_condition'] ?? 'normal';
     $latitude = isset($data['latitude']) ? floatval($data['latitude']) : null;
     $longitude = isset($data['longitude']) ? floatval($data['longitude']) : null;
     $streamAssigned = trim($data['location_name'] ?? '');
@@ -1842,6 +2234,18 @@ function handleDeviceSubmission($conn, $data) {
     }
     
     $locationId = null;
+    $conditionChanged = false;
+    
+    // Check if device is too far from river when active with coordinates
+    if ($status === 'active' && $latitude && $longitude) {
+        $isNearRiver = calculateDistanceToRiver($latitude, $longitude);
+        
+        if (!$isNearRiver) {
+            // Auto-change condition to displaced (keep status as active)
+            $deviceCondition = 'displaced';
+            $conditionChanged = true;
+        }
+    }
     
     // Only create/update location if device is active and has coordinates
     if ($status === 'active' && $latitude && $longitude) {
@@ -1881,21 +2285,29 @@ function handleDeviceSubmission($conn, $data) {
     
     if (isset($data['device_id']) && $data['device_id'] > 0) {
         // Update existing device
-        $stmt = $conn->prepare("UPDATE devices SET device_name = ?, status = ?, location_id = ? WHERE device_id = ?");
-        $stmt->bind_param("ssii", $deviceName, $status, $locationId, $data['device_id']);
+        $stmt = $conn->prepare("UPDATE devices SET device_name = ?, status = ?, device_condition = ?, location_id = ? WHERE device_id = ?");
+        $stmt->bind_param("ssssi", $deviceName, $status, $deviceCondition, $locationId, $data['device_id']);
         
         if ($stmt->execute()) {
-            $_SESSION['success'] = 'Device updated successfully';
+            if ($conditionChanged) {
+                $_SESSION['warning'] = 'Device condition set to "Displaced" - location is far from Mangima River but status remains Active.';
+            } else {
+                $_SESSION['success'] = 'Device updated successfully';
+            }
         } else {
             throw new Exception('Failed to update device: ' . $conn->error);
         }
     } else {
         // Add new device
-        $stmt = $conn->prepare("INSERT INTO devices (device_name, status, location_id, last_active) VALUES (?, ?, ?, NOW())");
-        $stmt->bind_param("ssi", $deviceName, $status, $locationId);
+        $stmt = $conn->prepare("INSERT INTO devices (device_name, status, device_condition, location_id, last_active) VALUES (?, ?, ?, ?, NOW())");
+        $stmt->bind_param("sssi", $deviceName, $status, $deviceCondition, $locationId);
         
         if ($stmt->execute()) {
-            $_SESSION['success'] = 'Device added successfully';
+            if ($conditionChanged) {
+                $_SESSION['warning'] = 'Device condition set to "Displaced" - location is far from Mangima River but status remains Active.';
+            } else {
+                $_SESSION['success'] = 'Device added successfully';
+            }
         } else {
             throw new Exception('Failed to add device: ' . $conn->error);
         }
