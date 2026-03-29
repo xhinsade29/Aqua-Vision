@@ -1426,30 +1426,42 @@ include __DIR__ . '/../../assets/navigation.php';
                     </div>
                     <div id="deviceMapContainer" style="padding: 1.25rem;">
                         <div id="devices-overview-map" style="height: 500px; border-radius: var(--radius); border: 1px solid var(--gray-200);"></div>
-                        <div style="display: flex; gap: 1rem; margin-top: 0.75rem; font-size: 0.75rem; color: var(--gray-500);">
-                            <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #059669;"></span>
-                                Active
+                        <div style="margin-top: 0.75rem; padding: 0.75rem; background: #f8fafc; border-radius: 8px;">
+                            <div style="font-size: 0.75rem; font-weight: 600; color: var(--gray-600); margin-bottom: 0.5rem;">📊 Legend</div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.7rem; color: var(--gray-500);">
+                                <!-- Status Colors (when condition is normal) -->
+                                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                    <span style="width: 10px; height: 10px; border-radius: 50%; background: #059669;"></span>
+                                    <span>Active</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                    <span style="width: 10px; height: 10px; border-radius: 50%; background: #3b82f6;"></span>
+                                    <span>Maintenance</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                    <span style="width: 10px; height: 10px; border-radius: 50%; background: #dc2626;"></span>
+                                    <span>Inactive</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                    <span style="width: 10px; height: 10px; border-radius: 50%; background: #6b7280;"></span>
+                                    <span>Offline</span>
+                                </div>
+                                <!-- Condition Colors (priority) -->
+                                <div style="display: flex; align-items: center; gap: 0.25rem; margin-left: 0.5rem; border-left: 1px solid var(--gray-300); padding-left: 0.5rem;">
+                                    <span style="width: 10px; height: 10px; border-radius: 50%; background: #7c3aed;"></span>
+                                    <span>⚠️ Displaced</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                    <span style="width: 10px; height: 10px; border-radius: 50%; background: #1f2937;"></span>
+                                    <span>⚠️ Damaged</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                                    <span style="width: 10px; height: 10px; border-radius: 50%; background: #d97706;"></span>
+                                    <span>⚠️ Malfunctioning</span>
+                                </div>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #3b82f6;"></span>
-                                Maintenance
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #7c3aed;"></span>
-                                Displaced
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #1f2937;"></span>
-                                Damaged
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #dc2626;"></span>
-                                Inactive
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #9ca3af;"></span>
-                                Unassigned
+                            <div style="font-size: 0.65rem; color: var(--gray-400); margin-top: 0.25rem; font-style: italic;">
+                                * Condition colors take priority over status colors
                             </div>
                         </div>
                     </div>
@@ -1865,7 +1877,7 @@ include __DIR__ . '/../../assets/navigation.php';
                     
                     // Add markers for each device
                     devicesWithLocations.forEach(device => {
-                        const color = getDeviceStatusColor(device.status);
+                        const color = getDeviceStatusColor(device.status, device.device_condition);
                         
                         const marker = L.circleMarker([device.latitude, device.longitude], {
                             radius: 10,
@@ -1937,15 +1949,26 @@ include __DIR__ . '/../../assets/navigation.php';
                     }
                 }
                 
-                function getDeviceStatusColor(status) {
-                    const colors = {
-                        'active': '#059669',
-                        'maintenance': '#3b82f6', 
-                        'displaced': '#7c3aed',
-                        'damaged': '#1f2937',
-                        'inactive': '#dc2626'
+                function getDeviceStatusColor(status, condition) {
+                    // Condition takes priority over status for coloring
+                    if (condition && condition !== 'normal') {
+                        const conditionColors = {
+                            'displaced': '#7c3aed',      // Purple
+                            'damaged': '#1f2937',        // Dark gray/black
+                            'malfunctioning': '#d97706'  // Orange
+                        };
+                        return conditionColors[condition] || '#9ca3af';
+                    }
+                    
+                    // Use status color if condition is normal
+                    const statusColors = {
+                        'active': '#059669',      // Green
+                        'maintenance': '#3b82f6', // Blue
+                        'inactive': '#dc2626',    // Red
+                        'offline': '#6b7280',     // Gray
+                        'unassigned': '#9ca3af'   // Light gray
                     };
-                    return colors[status] || '#9ca3af';
+                    return statusColors[status] || '#9ca3af';
                 }
                 
                 function selectDevice(deviceId) {
