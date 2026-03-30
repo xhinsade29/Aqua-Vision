@@ -127,8 +127,11 @@ function getActivityTimeline($conn, $hours = 24) {
     // Get system logs
     $systemLogs = getSystemLogs($conn, $hours);
     foreach ($systemLogs as $log) {
+        // Check if this is a device-related log
+        $isDeviceLog = in_array($log['action'], ['DEVICE_CREATE', 'DEVICE_UPDATE', 'DEVICE_DELETE']);
+        
         $timeline[] = [
-            'type' => 'system',
+            'type' => $isDeviceLog ? 'device' : 'system',
             'timestamp' => $log['created_at'],
             'action' => $log['action'],
             'message' => $log['details'],
@@ -586,14 +589,71 @@ if (($_GET['action'] ?? '') === 'fetch') {
                                         <?php endif; ?>
                                     </div>
                                 </div>
-                            <?php elseif ($item['type'] === 'system'): ?>
-                                <div class="timeline-icon" style="background: #dbeafe;">🔧</div>
+                            <?php elseif ($item['type'] === 'system' || $item['type'] === 'device'): ?>
+                                <?php
+                                // Parse device update details
+                                $changes = [];
+                                $message = $item['message'];
+                                $deviceInfo = $message;
+                                
+                                if (strpos($message, ' | ') !== false) {
+                                    $parts = explode(' | ', $message);
+                                    $deviceInfo = $parts[0];
+                                    $changes = array_slice($parts, 1);
+                                }
+                                
+                                // Determine icon and color based on action
+                                $icon = '🔧';
+                                $bgColor = '#dbeafe';
+                                if ($item['action'] === 'DEVICE_CREATE') {
+                                    $icon = '➕';
+                                    $bgColor = '#d1fae5';
+                                } elseif ($item['action'] === 'DEVICE_UPDATE') {
+                                    $icon = '✏️';
+                                    $bgColor = '#fef3c7';
+                                } elseif ($item['action'] === 'DEVICE_DELETE') {
+                                    $icon = '🗑️';
+                                    $bgColor = '#fee2e2';
+                                }
+                                ?>
+                                <div class="timeline-icon" style="background: <?= $bgColor ?>;"><?= $icon ?></div>
                                 <div class="timeline-content">
                                     <div class="timeline-title">
                                         <?= htmlspecialchars(str_replace('_', ' ', $item['action'])) ?>
-                                        <span class="timeline-badge info">System</span>
+                                        <span class="timeline-badge <?= $item['type'] === 'device' ? 'info' : 'info' ?>">
+                                            <?= $item['type'] === 'device' ? 'Device' : 'System' ?>
+                                        </span>
                                     </div>
-                                    <div class="timeline-desc"><?= htmlspecialchars($item['message']) ?></div>
+                                    <div class="timeline-desc">
+                                        <?= htmlspecialchars($deviceInfo) ?>
+                                        <?php if (!empty($changes)): ?>
+                                            <div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--gray-50); border-radius: 4px; font-size: 0.8rem;">
+                                                <?php foreach ($changes as $change): ?>
+                                                    <?php
+                                                    // Parse change: "Field: 'old' → 'new'"
+                                                    if (preg_match("/^([^:]+):\s*'(.+)'\s*→\s*'(.+)'$/", $change, $matches)) {
+                                                        $field = $matches[1];
+                                                        $oldVal = $matches[2];
+                                                        $newVal = $matches[3];
+                                                        $changeIcon = '📝';
+                                                        if ($field === 'Name') $changeIcon = '🏷️';
+                                                        elseif ($field === 'Status') $changeIcon = '🔘';
+                                                        elseif ($field === 'Condition') $changeIcon = '🔧';
+                                                        elseif ($field === 'Location') $changeIcon = '📍';
+                                                    ?>
+                                                        <div style="margin: 0.25rem 0; padding: 0.2rem 0;">
+                                                            <span style="color: var(--gray-600);"><?= $changeIcon ?> <?= htmlspecialchars($field) ?>:</span>
+                                                            <span style="text-decoration: line-through; color: var(--gray-400);"><?= htmlspecialchars($oldVal) ?></span>
+                                                            <span style="color: var(--gray-500);">→</span>
+                                                            <span style="color: var(--primary); font-weight: 500;"><?= htmlspecialchars($newVal) ?></span>
+                                                        </div>
+                                                    <?php } else { ?>
+                                                        <div style="font-size: 0.75rem; color: var(--gray-500);"><?= htmlspecialchars($change) ?></div>
+                                                    <?php } ?>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
                                     <div class="timeline-meta">
                                         <?= date('M d, Y H:i:s', strtotime($item['timestamp'])) ?>
                                         • By: <?= htmlspecialchars($item['user']) ?>
@@ -711,16 +771,65 @@ if (($_GET['action'] ?? '') === 'fetch') {
                                 </div>
                             </div>
                         </div>`;
-                } else if (item.type === 'system') {
+                } else if (item.type === 'system' || item.type === 'device') {
+                    // Parse device update details
+                    let changesHtml = '';
+                    let deviceInfo = item.message;
+                    let icon = '🔧';
+                    let bgColor = '#dbeafe';
+                    
+                    if (item.action === 'DEVICE_CREATE') {
+                        icon = '➕';
+                        bgColor = '#d1fae5';
+                    } else if (item.action === 'DEVICE_UPDATE') {
+                        icon = '✏️';
+                        bgColor = '#fef3c7';
+                    } else if (item.action === 'DEVICE_DELETE') {
+                        icon = '🗑️';
+                        bgColor = '#fee2e2';
+                    }
+                    
+                    // Parse changes from message
+                    if (item.message && item.message.includes(' | ')) {
+                        const parts = item.message.split(' | ');
+                        deviceInfo = parts[0];
+                        const changes = parts.slice(1);
+                        
+                        if (changes.length > 0) {
+                            changesHtml = changes.map(change => {
+                                // Format change: "Field: 'old' → 'new'"
+                                const match = change.match(/^([^:]+):\s*'(.+)'\s*→\s*'(.+)'$/);
+                                if (match) {
+                                    const [, field, oldVal, newVal] = match;
+                                    let changeIcon = '📝';
+                                    if (field === 'Name') changeIcon = '🏷️';
+                                    else if (field === 'Status') changeIcon = '🔘';
+                                    else if (field === 'Condition') changeIcon = '🔧';
+                                    else if (field === 'Location') changeIcon = '📍';
+                                    return `<div style="margin: 0.25rem 0; padding: 0.2rem 0;">
+                                        <span style="color: var(--gray-600);">${changeIcon} ${escapeHtml(field)}:</span>
+                                        <span style="text-decoration: line-through; color: var(--gray-400);">${escapeHtml(oldVal)}</span>
+                                        <span style="color: var(--gray-500);">→</span>
+                                        <span style="color: var(--primary); font-weight: 500;">${escapeHtml(newVal)}</span>
+                                    </div>`;
+                                }
+                                return `<div style="font-size: 0.75rem; color: var(--gray-500);">${escapeHtml(change)}</div>`;
+                            }).join('');
+                        }
+                    }
+                    
                     return `
                         <div class="timeline-item">
-                            <div class="timeline-icon" style="background: #dbeafe;">🔧</div>
+                            <div class="timeline-icon" style="background: ${bgColor};">${icon}</div>
                             <div class="timeline-content">
                                 <div class="timeline-title">
                                     ${escapeHtml(item.action.replace(/_/g, ' '))}
-                                    <span class="timeline-badge info">System</span>
+                                    <span class="timeline-badge info">${item.type === 'device' ? 'Device' : 'System'}</span>
                                 </div>
-                                <div class="timeline-desc">${escapeHtml(item.message)}</div>
+                                <div class="timeline-desc">
+                                    ${escapeHtml(deviceInfo)}
+                                    ${changesHtml ? `<div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--gray-50); border-radius: 4px; font-size: 0.8rem;">${changesHtml}</div>` : ''}
+                                </div>
                                 <div class="timeline-meta">
                                     ${formatDate(item.timestamp)}
                                     • By: ${escapeHtml(item.user)}

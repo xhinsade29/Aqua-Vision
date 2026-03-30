@@ -52,6 +52,28 @@ if ($action === 'get_readings') {
     exit;
 }
 
+// Handle device history API
+if ($action === 'get_history') {
+    $deviceId = isset($_GET['device_id']) ? (int)$_GET['device_id'] : 0;
+    
+    if ($deviceId > 0) {
+        $history = getDeviceHistory($conn, $deviceId);
+        
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => true,
+            'history' => $history
+        ]);
+    } else {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => false,
+            'error' => 'Invalid device ID'
+        ]);
+    }
+    exit;
+}
+
 // Handle map sync API
 if ($action === 'map_sync') {
     error_reporting(0); ini_set('display_errors', 0);
@@ -916,10 +938,26 @@ include __DIR__ . '/../../assets/navigation.php';
                                 </div>
                                 
                                 <!-- Coordinates -->
-                                <div>
+                                <div style="margin-bottom: 1rem;">
                                     <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.25rem;">Coordinates</div>
                                     <div style="font-size: 0.875rem; font-weight: 500; font-family: monospace;">
                                         <?= $device['latitude'] ? number_format($device['latitude'], 5) . '°N, ' . number_format($device['longitude'], 5) . '°E' : 'Not set' ?>
+                                    </div>
+                                </div>
+                                
+                                <!-- Last Updated -->
+                                <div style="margin-bottom: 1rem;">
+                                    <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.25rem;">Last Updated</div>
+                                    <div style="font-size: 0.875rem; font-weight: 500;">
+                                        <?= $device['updated_at'] ? date('M d, H:i', strtotime($device['updated_at'])) : 'Never' ?>
+                                    </div>
+                                </div>
+                                
+                                <!-- Activity History -->
+                                <div style="border-top: 1px solid var(--gray-200); padding-top: 0.75rem; margin-top: 0.75rem;">
+                                    <div style="font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--gray-600);">Activity History</div>
+                                    <div id="editDeviceHistory" style="font-size: 0.7rem; color: var(--gray-500); max-height: 120px; overflow-y: auto;">
+                                        <div style="padding: 0.5rem 0; color: var(--gray-400);">Loading history...</div>
                                     </div>
                                 </div>
                             </div>
@@ -927,6 +965,94 @@ include __DIR__ . '/../../assets/navigation.php';
                     </div>
                 </div>
             </div>
+            
+            <script>
+                // Load device history on page load
+                document.addEventListener('DOMContentLoaded', function() {
+                    fetchDeviceHistoryForEdit(<?= $device['device_id'] ?>);
+                });
+                
+                function fetchDeviceHistoryForEdit(deviceId) {
+                    fetch(`devices.php?action=get_history&device_id=${deviceId}&_=${Date.now()}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success && data.history) {
+                                updateEditDeviceHistoryDisplay(data.history);
+                            } else {
+                                document.getElementById('editDeviceHistory').innerHTML = 
+                                    '<div style="padding: 0.5rem 0; color: var(--gray-400);">No history available</div>';
+                            }
+                        })
+                        .catch(error => {
+                            console.log('Could not fetch device history:', error);
+                            document.getElementById('editDeviceHistory').innerHTML = 
+                                '<div style="padding: 0.5rem 0; color: var(--gray-400);">Unable to load history</div>';
+                        });
+                }
+                
+                function updateEditDeviceHistoryDisplay(history) {
+                    const historyElement = document.getElementById('editDeviceHistory');
+                    if (!historyElement) return;
+                    
+                    if (history.length === 0) {
+                        historyElement.innerHTML = '<div style="padding: 0.5rem 0; color: var(--gray-400);">No history available</div>';
+                        return;
+                    }
+                    
+                    const historyHtml = history.slice(0, 5).map(entry => {
+                        const date = new Date(entry.created_at);
+                        const dateStr = date.toLocaleDateString('en-PH', {month: 'short', day: 'numeric'});
+                        const timeStr = date.toLocaleTimeString('en-PH', {hour: '2-digit', minute: '2-digit', hour12: false});
+                        const userName = entry.user_name || 'System';
+                        
+                        // Parse changes from details
+                        let changesHtml = '';
+                        if (entry.details && entry.details.includes(' | ')) {
+                            const parts = entry.details.split(' | ');
+                            const changes = parts.slice(1); // Skip the first part ("Updated device ID: X")
+                            if (changes.length > 0) {
+                                changesHtml = changes.map(change => {
+                                    // Format change: "Field: 'old' → 'new'"
+                                    const match = change.match(/^([^:]+):\s*'(.+)'\s*→\s*'(.+)'$/);
+                                    if (match) {
+                                        const [, field, oldVal, newVal] = match;
+                                        let icon = '📝';
+                                        if (field === 'Name') icon = '🏷️';
+                                        else if (field === 'Status') icon = '🔘';
+                                        else if (field === 'Condition') icon = '🔧';
+                                        else if (field === 'Location') icon = '📍';
+                                        return `<div style="margin: 0.15rem 0; padding: 0.2rem 0.4rem; background: var(--gray-50); border-radius: 4px; font-size: 0.65rem;">
+                                            <span style="color: var(--gray-600);">${icon} ${field}:</span> 
+                                            <span style="text-decoration: line-through; color: var(--gray-400);">${oldVal}</span> 
+                                            <span style="color: var(--gray-500);">→</span> 
+                                            <span style="color: var(--primary); font-weight: 500;">${newVal}</span>
+                                        </div>`;
+                                    }
+                                    return `<div style="font-size: 0.65rem; color: var(--gray-500);">${change}</div>`;
+                                }).join('');
+                            }
+                        }
+                        
+                        let actionIcon = '📝';
+                        if (entry.action === 'DEVICE_CREATE') actionIcon = '➕';
+                        else if (entry.action === 'DEVICE_UPDATE') actionIcon = '✏️';
+                        else if (entry.action === 'DEVICE_DELETE') actionIcon = '🗑️';
+                        
+                        return `
+                            <div style="padding: 0.4rem 0; border-bottom: 1px solid var(--gray-100);">
+                                <div style="display: flex; justify-content: space-between; color: var(--gray-600);">
+                                    <span style="font-weight: 500;">${actionIcon} ${entry.action}</span>
+                                    <span style="color: var(--gray-400); font-size: 0.65rem;">${dateStr}, ${timeStr}</span>
+                                </div>
+                                ${changesHtml ? `<div style="margin-top: 0.3rem;">${changesHtml}</div>` : ''}
+                                <div style="color: var(--gray-400); font-size: 0.6rem; margin-top: 0.2rem;">by ${userName}</div>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    historyElement.innerHTML = historyHtml;
+                }
+            </script>
             
             <script>
                 // Initialize device location map
@@ -2210,8 +2336,13 @@ include __DIR__ . '/../../assets/navigation.php';
                                 </div>
                             ` : ''}
                             ${device.last_active ? `
-                                <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 1rem;">
+                                <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.5rem;">
                                     Last Active: ${new Date(device.last_active).toLocaleDateString('en-PH', {month: 'short', day: 'numeric'})}, ${new Date(device.last_active).toLocaleTimeString('en-PH', {hour: '2-digit', minute: '2-digit', hour12: false})}
+                                </div>
+                            ` : ''}
+                            ${device.updated_at ? `
+                                <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 1rem;">
+                                    Last Updated: ${new Date(device.updated_at).toLocaleDateString('en-PH', {month: 'short', day: 'numeric'})}, ${new Date(device.updated_at).toLocaleTimeString('en-PH', {hour: '2-digit', minute: '2-digit', hour12: false})}
                                 </div>
                             ` : ''}
                             
@@ -2241,10 +2372,18 @@ include __DIR__ . '/../../assets/navigation.php';
                                             <span style="font-weight: 500;">-- m</span>
                                         </div>
                                         <div style="display: flex; justify-content: space-between; padding: 0.25rem 0;">
-                                            <span>� Sed:</span>
+                                            <span>🟤 Sed:</span>
                                             <span style="font-weight: 500;">-- mg/L</span>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Device Activity History -->
+                            <div style="border-top: 1px solid var(--gray-200); padding-top: 0.75rem; margin-top: 0.75rem;">
+                                <div style="font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--gray-600);">Activity History</div>
+                                <div id="deviceHistory-${device.device_id}" style="font-size: 0.75rem; color: var(--gray-500); max-height: 150px; overflow-y: auto;">
+                                    <div style="padding: 0.5rem 0; color: var(--gray-400);">Loading history...</div>
                                 </div>
                             </div>
                         </div>
@@ -2254,6 +2393,9 @@ include __DIR__ . '/../../assets/navigation.php';
                     
                     // Fetch and display latest sensor readings for this device
                     fetchDeviceReadings(device.device_id);
+                    
+                    // Fetch and display device history
+                    fetchDeviceHistory(device.device_id);
                 }
                 
                 function fetchDeviceReadings(deviceId) {
@@ -2268,6 +2410,88 @@ include __DIR__ . '/../../assets/navigation.php';
                         .catch(error => {
                             console.log('Could not fetch device readings:', error);
                         });
+                }
+                
+                function fetchDeviceHistory(deviceId) {
+                    // Fetch device activity history
+                    fetch(`devices.php?action=get_history&device_id=${deviceId}&_=${Date.now()}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success && data.history) {
+                                updateDeviceHistoryDisplay(deviceId, data.history);
+                            } else {
+                                document.getElementById(`deviceHistory-${deviceId}`).innerHTML = 
+                                    '<div style="padding: 0.5rem 0; color: var(--gray-400);">No history available</div>';
+                            }
+                        })
+                        .catch(error => {
+                            console.log('Could not fetch device history:', error);
+                            document.getElementById(`deviceHistory-${deviceId}`).innerHTML = 
+                                '<div style="padding: 0.5rem 0; color: var(--gray-400);">Unable to load history</div>';
+                        });
+                }
+                
+                function updateDeviceHistoryDisplay(deviceId, history) {
+                    const historyElement = document.getElementById(`deviceHistory-${deviceId}`);
+                    if (!historyElement) return;
+                    
+                    if (history.length === 0) {
+                        historyElement.innerHTML = '<div style="padding: 0.5rem 0; color: var(--gray-400);">No history available</div>';
+                        return;
+                    }
+                    
+                    const historyHtml = history.map(entry => {
+                        const date = new Date(entry.created_at);
+                        const dateStr = date.toLocaleDateString('en-PH', {month: 'short', day: 'numeric'});
+                        const timeStr = date.toLocaleTimeString('en-PH', {hour: '2-digit', minute: '2-digit', hour12: false});
+                        const userName = entry.user_name || 'System';
+                        
+                        // Parse changes from details
+                        let changesHtml = '';
+                        if (entry.details && entry.details.includes(' | ')) {
+                            const parts = entry.details.split(' | ');
+                            const changes = parts.slice(1); // Skip the first part ("Updated device ID: X")
+                            if (changes.length > 0) {
+                                changesHtml = changes.map(change => {
+                                    // Format change: "Field: 'old' → 'new'"
+                                    const match = change.match(/^([^:]+):\s*'(.+)'\s*→\s*'(.+)'$/);
+                                    if (match) {
+                                        const [, field, oldVal, newVal] = match;
+                                        let icon = '📝';
+                                        if (field === 'Name') icon = '🏷️';
+                                        else if (field === 'Status') icon = '🔘';
+                                        else if (field === 'Condition') icon = '🔧';
+                                        else if (field === 'Location') icon = '📍';
+                                        return `<div style="margin: 0.15rem 0; padding: 0.2rem 0.4rem; background: var(--gray-50); border-radius: 4px; font-size: 0.65rem;">
+                                            <span style="color: var(--gray-600);">${icon} ${field}:</span> 
+                                            <span style="text-decoration: line-through; color: var(--gray-400);">${oldVal}</span> 
+                                            <span style="color: var(--gray-500);">→</span> 
+                                            <span style="color: var(--primary); font-weight: 500;">${newVal}</span>
+                                        </div>`;
+                                    }
+                                    return `<div style="font-size: 0.65rem; color: var(--gray-500);">${change}</div>`;
+                                }).join('');
+                            }
+                        }
+                        
+                        let actionIcon = '📝';
+                        if (entry.action === 'DEVICE_CREATE') actionIcon = '➕';
+                        else if (entry.action === 'DEVICE_UPDATE') actionIcon = '✏️';
+                        else if (entry.action === 'DEVICE_DELETE') actionIcon = '🗑️';
+                        
+                        return `
+                            <div style="padding: 0.4rem 0; border-bottom: 1px solid var(--gray-100); font-size: 0.7rem;">
+                                <div style="display: flex; justify-content: space-between; color: var(--gray-600);">
+                                    <span style="font-weight: 500;">${actionIcon} ${entry.action}</span>
+                                    <span style="color: var(--gray-400);">${dateStr}, ${timeStr}</span>
+                                </div>
+                                ${changesHtml ? `<div style="margin-top: 0.3rem;">${changesHtml}</div>` : `<div style="color: var(--gray-500); margin-top: 0.15rem; font-size: 0.65rem;">${entry.details}</div>`}
+                                <div style="color: var(--gray-400); font-size: 0.6rem; margin-top: 0.2rem;">by ${userName}</div>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    historyElement.innerHTML = historyHtml;
                 }
                 
                 function updateDeviceReadingsDisplay(deviceId, readings) {
@@ -2623,8 +2847,11 @@ function handleDeviceSubmission($conn, $data) {
     }
     
     if (isset($data['device_id']) && $data['device_id'] > 0) {
+        // Get existing device data to compare changes
+        $existingDevice = getDeviceById($conn, $data['device_id']);
+        
         // Update existing device
-        $stmt = $conn->prepare("UPDATE devices SET device_name = ?, status = ?, device_condition = ?, location_id = ? WHERE device_id = ?");
+        $stmt = $conn->prepare("UPDATE devices SET device_name = ?, status = ?, device_condition = ?, location_id = ?, updated_at = NOW() WHERE device_id = ?");
         $stmt->bind_param("ssssi", $deviceName, $status, $deviceCondition, $locationId, $data['device_id']);
         
         if ($stmt->execute()) {
@@ -2633,12 +2860,34 @@ function handleDeviceSubmission($conn, $data) {
             } else {
                 $_SESSION['success'] = 'Device updated successfully';
             }
-            // Log the activity
-            $logAction = isset($data['device_id']) ? 'DEVICE_UPDATE' : 'DEVICE_CREATE';
-            $logDetails = isset($data['device_id']) 
-                ? "Updated device: {$deviceName} (ID: {$data['device_id']}, Status: {$status})"
-                : "Created new device: {$deviceName} (Status: {$status})";
-            logActivity($conn, $logAction, $logDetails);
+            
+            // Build detailed log of what changed
+            $changes = [];
+            if ($existingDevice) {
+                if ($existingDevice['device_name'] !== $deviceName) {
+                    $changes[] = "Name: '{$existingDevice['device_name']}' → '{$deviceName}'";
+                }
+                if ($existingDevice['status'] !== $status) {
+                    $changes[] = "Status: '{$existingDevice['status']}' → '{$status}'";
+                }
+                if ($existingDevice['device_condition'] !== $deviceCondition) {
+                    $changes[] = "Condition: '{$existingDevice['device_condition']}' → '{$deviceCondition}'";
+                }
+                if (($existingDevice['latitude'] != $latitude) || ($existingDevice['longitude'] != $longitude)) {
+                    $oldLat = $existingDevice['latitude'] ? number_format($existingDevice['latitude'], 5) : 'none';
+                    $oldLng = $existingDevice['longitude'] ? number_format($existingDevice['longitude'], 5) : 'none';
+                    $newLat = $latitude ? number_format($latitude, 5) : 'none';
+                    $newLng = $longitude ? number_format($longitude, 5) : 'none';
+                    $changes[] = "Location: ({$oldLat}, {$oldLng}) → ({$newLat}, {$newLng})";
+                }
+            }
+            
+            // Log the activity with detailed changes
+            $logDetails = "Updated device ID: {$data['device_id']}";
+            if (!empty($changes)) {
+                $logDetails .= " | " . implode(" | ", $changes);
+            }
+            logActivity($conn, 'DEVICE_UPDATE', $logDetails);
         } else {
             throw new Exception('Failed to update device: ' . $conn->error);
         }
@@ -2734,6 +2983,25 @@ function handleDeviceDelete($conn, $data) {
 }
 
 /**
+ * Get device activity history from system logs
+ */
+function getDeviceHistory($conn, $deviceId) {
+    $sql = "SELECT sl.*, u.full_name as user_name 
+            FROM system_logs sl
+            LEFT JOIN users u ON u.user_id = sl.user_id
+            WHERE sl.details LIKE ? OR sl.details LIKE ?
+            ORDER BY sl.created_at DESC
+            LIMIT 20";
+    
+    $pattern1 = "%ID: {$deviceId}%";
+    $pattern2 = "%device_id: {$deviceId}%";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ss", $pattern1, $pattern2);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+/**
  * Get all devices with location info and coordinates
  */
 function getAllDevices($conn) {
@@ -2774,7 +3042,7 @@ function getAllLocations($conn) {
  * Get device by ID
  */
 function getDeviceById($conn, $id) {
-    $stmt = $conn->prepare("SELECT d.*, l.location_name, l.river_section, l.latitude, l.longitude 
+    $stmt = $conn->prepare("SELECT d.*, l.location_name, l.river_section, l.latitude, l.longitude, d.updated_at
                             FROM devices d 
                             LEFT JOIN locations l ON l.location_id = d.location_id 
                             WHERE d.device_id = ?");
