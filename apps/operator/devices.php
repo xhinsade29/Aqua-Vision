@@ -49,19 +49,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['log_maintenance'])) {
         $stmt->execute();
         $stmt->close();
         
-        // Try to log maintenance (table may not exist)
-        try {
-            $stmt = $conn->prepare("INSERT INTO maintenance_logs (device_id, maintenance_type, notes, damage_level, malfunction_type, performed_by, performed_at) VALUES (?, ?, ?, ?, ?, ?, NOW())");
-            if ($stmt) {
-                $stmt->bind_param("issssi", $deviceId, $maintenanceType, $notes, $damageLevel, $malfunctionType, $_SESSION['user_id']);
-                $stmt->execute();
-                $stmt->close();
-            }
-        } catch (Exception $e) {
-            // Table doesn't exist, skip logging
-        }
+        // Log maintenance
+        $stmt = $conn->prepare("INSERT INTO maintenance_logs (device_id, maintenance_type, notes, damage_level, malfunction_type, performed_by, performed_at) VALUES (?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->bind_param("issssi", $deviceId, $maintenanceType, $notes, $damageLevel, $malfunctionType, $_SESSION['user_id']);
         
-        $_SESSION['success'] = 'Maintenance logged successfully: ' . ucfirst($maintenanceType);
+        if ($stmt->execute()) {
+            $_SESSION['success'] = 'Maintenance logged successfully: ' . ucfirst($maintenanceType);
+        } else {
+            $_SESSION['error'] = 'Failed to log maintenance: ' . $stmt->error;
+        }
+        $stmt->close();
     }
     header('Location: ' . $_SERVER['PHP_SELF']);
     exit;
@@ -339,7 +336,6 @@ unset($_SESSION['success'], $_SESSION['error']);
                 <h1 class="page-title">🔧 Device Management</h1>
                 <p style="color: var(--text2); font-size: 14px; margin-top: 4px;">Maintain, repair, and track device health</p>
             </div>
-            <a href="dashboard.php" class="back-link">← Back to Dashboard</a>
         </div>
         
         <div class="device-grid">
@@ -404,7 +400,18 @@ unset($_SESSION['success'], $_SESSION['error']);
                                 </select>
                             </div>
                             <div style="margin-bottom: 10px;">
-                                <input type="text" name="malfunction_type" placeholder="Malfunction type (e.g., Sensor failure, Power issue, Communication error)" class="form-input">
+                                <select name="malfunction_type" class="form-select" style="width: 100%;">
+                                    <option value="">Select Malfunction Type (if any)</option>
+                                    <option value="sensor_failure">📡 Sensor Failure</option>
+                                    <option value="power_issue">🔌 Power Issue</option>
+                                    <option value="communication_error">📶 Communication Error</option>
+                                    <option value="calibration_drift">📏 Calibration Drift</option>
+                                    <option value="physical_damage">💥 Physical Damage</option>
+                                    <option value="water_intrusion">💧 Water Intrusion</option>
+                                    <option value="connectivity_loss">🔗 Connectivity Loss</option>
+                                    <option value="data_corruption">💾 Data Corruption</option>
+                                    <option value="other">❓ Other</option>
+                                </select>
                             </div>
                             <textarea name="maintenance_notes" placeholder="Describe the work performed, issues found, parts replaced, calibration details..." class="form-textarea"></textarea>
                             <button type="submit" name="log_maintenance" class="btn btn-success" style="width: 100%; margin-top: 10px;">
