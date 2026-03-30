@@ -51,6 +51,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acknowledge_alert']))
     exit;
 }
 
+// ── Handle Acknowledge All Alerts ─────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acknowledge_all'])) {
+    $stmt = $conn->prepare("UPDATE alerts SET status = 'resolved', resolved_at = NOW(), resolved_by = ? WHERE status = 'active'");
+    $stmt->bind_param("i", $_SESSION['user_id']);
+    if ($stmt->execute()) {
+        $affected = $stmt->affected_rows;
+        $_SESSION['success'] = "All {$affected} alerts acknowledged successfully!";
+    } else {
+        $_SESSION['error'] = 'Failed to acknowledge alerts.';
+    }
+    $stmt->close();
+    header('Location: ' . $_SERVER['PHP_SELF']);
+    exit;
+}
+
 // ── Handle Device Status Update ──────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_device'])) {
     $deviceId = intval($_POST['device_id'] ?? 0);
@@ -514,7 +529,13 @@ unset($_SESSION['success'], $_SESSION['error']);
             <div class="card">
                 <div class="card-header">
                     <span class="card-title">🔔 Active Alerts (<?= count($alerts) ?>)</span>
-                    <span style="font-size: 12px; color: var(--text3);">Acknowledge to resolve</span>
+                    <?php if (!empty($alerts)): ?>
+                        <form method="POST" style="display: inline;">
+                            <button type="submit" name="acknowledge_all" class="ack-btn" style="background: var(--c2);" onclick="return confirm('Acknowledge ALL <?= count($alerts) ?> alerts? This will mark them all as resolved.');">
+                                ✓ Acknowledge All
+                            </button>
+                        </form>
+                    <?php endif; ?>
                 </div>
                 <div class="card-body">
                     <?php if (empty($alerts)): ?>
@@ -560,7 +581,7 @@ unset($_SESSION['success'], $_SESSION['error']);
             <div class="card">
                 <div class="card-header">
                     <span class="card-title">🔧 Device Status</span>
-                    <a href="devices.php" style="font-size: 12px; color: var(--c2);">Manage Devices →</a>
+                    <a href="/Aqua-Vision/apps/operator/devices.php" style="font-size: 12px; color: var(--c2); font-weight: 500;">Manage Devices →</a>
                 </div>
                 <div class="card-body">
                     <?php if (empty($devices)): ?>
@@ -591,6 +612,8 @@ unset($_SESSION['success'], $_SESSION['error']);
             </div>
         
         <!-- Recent Operational Data -->
+        </div>
+        
         <div class="card" style="margin-top: 24px;">
             <div class="card-header">
                 <span class="card-title">📊 Recent Operational Data (Last 24 Hours)</span>
@@ -635,6 +658,7 @@ unset($_SESSION['success'], $_SESSION['error']);
                     </tbody>
                 </table>
             </div>
+        </div>
         <!-- My Recent Activity -->
         <div class="card" style="margin-top: 24px;">
             <div class="card-header">
