@@ -10,6 +10,8 @@ session_start();
 if (isset($_SESSION['user_id'])) {
     if ($_SESSION['user_role'] === 'researcher') {
         header('Location: apps/researcher/dashboard.php');
+    } elseif ($_SESSION['user_role'] === 'operator') {
+        header('Location: apps/operator/dashboard.php');
     } else {
         header('Location: apps/admin/dashboard.php');
     }
@@ -26,7 +28,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (empty($username) || empty($password)) {
         $error = 'Please enter both username and password';
-        log_activity('LOGIN_FAILED', "Login attempt with empty username or password");
     } else {
         // Check user credentials
         $stmt = $conn->prepare("
@@ -49,26 +50,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_name'] = $user['full_name'];
                 $_SESSION['user_role'] = $user['role'];
                 
-                // Log successful login
-                log_activity('LOGIN_SUCCESS', "User {$user['username']} logged in successfully");
-                
                 // Set success message for toast
                 $_SESSION['success'] = "Welcome back, {$user['full_name']}!";
                 
                 // Redirect based on role
                 if ($user['role'] === 'researcher') {
                     header('Location: apps/researcher/dashboard.php');
+                } elseif ($user['role'] === 'operator') {
+                    header('Location: apps/operator/dashboard.php');
                 } else {
                     header('Location: apps/admin/dashboard.php');
                 }
                 exit();
             } else {
-                $error = 'Invalid password or account is inactive';
-                log_activity('LOGIN_FAILED', "Failed login attempt for user: {$user['username']} - Invalid password or inactive account");
+                if (!$user['is_active']) {
+                    $error = 'Account is inactive. Please contact administrator.';
+                } else {
+                    $error = 'Invalid password';
+                }
             }
         } else {
             $error = 'User not found';
-            log_activity('LOGIN_FAILED', "Failed login attempt for username: {$username} - User not found");
         }
         
         $stmt->close();
@@ -141,12 +143,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       
       <button type="submit" class="btn">Sign In</button>
     </form>
-    
-    <div class="info-text">
-      <strong>Default Login:</strong><br>
-      Username: <strong>admin</strong><br>
-      Password: <strong>admin123</strong>
-    </div>
   </div>
 </div>
 
