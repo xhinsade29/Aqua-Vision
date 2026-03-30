@@ -26,7 +26,11 @@ if (!isset($_SESSION['user_id'])) {
 $currentUserRole = $_SESSION['user_role'] ?? '';
 if ($currentUserRole !== 'admin') {
     $_SESSION['error'] = 'You do not have permission to access this page.';
-    header('Location: /Aqua-Vision/apps/admin/dashboard.php');
+    if ($currentUserRole === 'researcher') {
+        header('Location: /Aqua-Vision/apps/researcher/dashboard.php');
+    } else {
+        header('Location: /Aqua-Vision/apps/admin/dashboard.php');
+    }
     exit;
 }
 

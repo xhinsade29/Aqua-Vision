@@ -22,6 +22,18 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+// Check if user has admin role
+$currentUserRole = $_SESSION['user_role'] ?? '';
+if ($currentUserRole !== 'admin') {
+    $_SESSION['error'] = 'You do not have permission to access this page.';
+    if ($currentUserRole === 'researcher') {
+        header('Location: /Aqua-Vision/apps/researcher/dashboard.php');
+    } else {
+        header('Location: /Aqua-Vision/apps/admin/dashboard.php');
+    }
+    exit;
+}
+
 // Handle actions
 $action = $_GET['action'] ?? 'list';
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;

@@ -6,9 +6,13 @@
 
 session_start();
 
-// If already logged in, redirect to dashboard
+// If already logged in, redirect based on role
 if (isset($_SESSION['user_id'])) {
-    header('Location: apps/admin/dashboard.php');
+    if ($_SESSION['user_role'] === 'researcher') {
+        header('Location: apps/researcher/dashboard.php');
+    } else {
+        header('Location: apps/admin/dashboard.php');
+    }
     exit();
 }
 
@@ -51,8 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Set success message for toast
                 $_SESSION['success'] = "Welcome back, {$user['full_name']}!";
                 
-                // Redirect to dashboard
-                header('Location: apps/admin/dashboard.php');
+                // Redirect based on role
+                if ($user['role'] === 'researcher') {
+                    header('Location: apps/researcher/dashboard.php');
+                } else {
+                    header('Location: apps/admin/dashboard.php');
+                }
                 exit();
             } else {
                 $error = 'Invalid password or account is inactive';

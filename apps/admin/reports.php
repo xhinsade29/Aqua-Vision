@@ -16,9 +16,19 @@ ini_set('display_startup_errors', '0');
 require_once '../../database/config.php';
 session_start();
 
-// Check login
+// Check login and admin role
 if (!isset($_SESSION['user_id'])) {
     header('Location: /Aqua-Vision/login.php');
+    exit;
+}
+
+if ($_SESSION['user_role'] !== 'admin') {
+    $_SESSION['error'] = 'Access denied. Admin privileges required.';
+    if ($_SESSION['user_role'] === 'researcher') {
+        header('Location: /Aqua-Vision/apps/researcher/dashboard.php');
+    } else {
+        header('Location: /Aqua-Vision/apps/admin/dashboard.php');
+    }
     exit;
 }
 
