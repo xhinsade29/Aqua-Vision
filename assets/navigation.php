@@ -432,7 +432,6 @@ $logoSrc = $assetBase . '/logo.png';
         <div class="av-nav-label">Devices</div>
         <div class="av-nav-sublabel">Equipment status</div>
       </div>
-      <span class="av-badge info" aria-label="12 devices">12</span>
     </a>
   </div>
 
