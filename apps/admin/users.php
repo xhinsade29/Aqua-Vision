@@ -253,6 +253,22 @@ function getRoleBadgeColor($role) {
     }
 }
 
+/**
+ * Log system activity to database
+ * @param mysqli $conn Database connection
+ * @param string $action Action type (e.g., 'USER_CREATE', 'USER_UPDATE', 'USER_DELETE')
+ * @param string $details Human-readable description of the action
+ * @return bool True on success, false on failure
+ */
+function logActivity($conn, $action, $details) {
+    $userId = $_SESSION['user_id'] ?? null;
+    $ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    
+    $stmt = $conn->prepare("INSERT INTO system_logs (user_id, action, details, ip_address, created_at) VALUES (?, ?, ?, ?, NOW())");
+    $stmt->bind_param("isss", $userId, $action, $details, $ipAddress);
+    return $stmt->execute();
+}
+
 // Get counts
 $totalUsers = count($users);
 $activeUsers = count(array_filter($users, fn($u) => $u['is_active']));
@@ -440,6 +456,7 @@ $researcherCount = count(array_filter($users, fn($u) => $u['role'] === 'research
 </head>
 <body>
     <?php include __DIR__ . '/../../assets/navigation.php'; ?>
+    <?php include __DIR__ . '/../../assets/toast.php'; ?>
     
     <div class="main-content">
         <!-- Header -->
@@ -668,5 +685,24 @@ $researcherCount = count(array_filter($users, fn($u) => $u['role'] === 'research
             </div>
         <?php endif; ?>
     </div>
+    
+    <script>
+        // Display toast notifications for session messages
+        <?php if (!empty($success)): ?>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (typeof showToast === 'function') {
+                    showToast(<?= json_encode($success) ?>, 'success', 5000);
+                }
+            });
+        <?php endif; ?>
+        
+        <?php if (!empty($error)): ?>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (typeof showToast === 'function') {
+                    showToast(<?= json_encode($error) ?>, 'error', 5000);
+                }
+            });
+        <?php endif; ?>
+    </script>
 </body>
 </html>

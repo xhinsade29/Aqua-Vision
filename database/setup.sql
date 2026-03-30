@@ -243,6 +243,18 @@ INSERT IGNORE INTO sensors (device_id, sensor_type, unit, min_threshold, max_thr
 INSERT IGNORE INTO users (username, email, password_hash, full_name, role) VALUES
 ('admin', 'admin@aqua-vision.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'System Administrator', 'admin');
 
+-- Insert sample operator user (password: operator123)
+INSERT IGNORE INTO users (username, email, password_hash, full_name, role) VALUES
+('operator', 'operator@aqua-vision.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Field Operator', 'operator');
+
+-- Insert sample viewer user (password: viewer123)
+INSERT IGNORE INTO users (username, email, password_hash, full_name, role) VALUES
+('viewer', 'viewer@aqua-vision.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Data Viewer', 'viewer');
+
+-- Insert sample researcher user (password: researcher123)
+INSERT IGNORE INTO users (username, email, password_hash, full_name, role) VALUES
+('researcher', 'researcher@aqua-vision.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Research Scientist', 'researcher');
+
 -- Insert sample sensor readings (last 24 hours)
 -- This will create some sample data for testing
 INSERT IGNORE INTO sensor_readings (sensor_id, value, recorded_at) VALUES
