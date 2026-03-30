@@ -399,22 +399,6 @@ $logoSrc = $assetBase . '/../../assets/logo.png';
     <div class="av-nav-divider" role="separator"></div>
 
     <div class="av-section-label" aria-hidden="true">Analysis</div>
-
-    <a href="/Aqua-Vision/apps/researcher/dashboard.php?view=devices"
-       class="av-nav-item <?= $currentPage === 'devices' ? 'active' : '' ?>"
-       aria-current="<?= $currentPage === 'devices' ? 'page' : 'false' ?>">
-      <div class="av-nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="4" width="12" height="8" rx="1.5" stroke="#4988C4" stroke-width="1.4"/>
-          <path d="M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1" stroke="#4988C4" stroke-width="1.4"/>
-          <circle cx="8" cy="8" r="1.5" fill="#4988C4" opacity="0.6"/>
-        </svg>
-      </div>
-      <div class="av-nav-label-wrap">
-        <div class="av-nav-label">Devices</div>
-        <div class="av-nav-sublabel">View sensor locations</div>
-      </div>
-    </a>
   </div>
 
   <div class="av-user-footer">

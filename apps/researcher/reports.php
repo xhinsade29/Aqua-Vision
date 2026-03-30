@@ -187,7 +187,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $currentPage = 'reports';
 
 // Get filter options
-$sensorTypes = $conn->query("SELECT DISTINCT sensor_type FROM sensors ORDER BY sensor_type")->fetch_all(MYSQLI_ASSOC);
+$sensorTypesResult = $conn->query("SELECT DISTINCT sensor_type FROM sensors WHERE sensor_type NOT IN ('humidity', 'pressure', 'flow_rate') ORDER BY sensor_type");
+$sensorTypes = [];
+while ($row = $sensorTypesResult->fetch_assoc()) {
+    $sensorTypes[] = $row['sensor_type'];
+}
+if (empty($sensorTypes)) {
+    $sensorTypes = ['temperature', 'ph_level', 'turbidity', 'dissolved_oxygen', 'water_level', 'sediments'];
+}
 $devices = $conn->query("SELECT device_id, device_name FROM devices WHERE status = 'active' ORDER BY device_name")->fetch_all(MYSQLI_ASSOC);
 $sections = $conn->query("SELECT DISTINCT river_section FROM locations WHERE river_section IS NOT NULL ORDER BY river_section")->fetch_all(MYSQLI_ASSOC);
 

@@ -270,11 +270,16 @@ if (($_GET['action'] ?? '') === 'analyze' && $_SERVER['REQUEST_METHOD'] === 'GET
 // ── Page Data ─────────────────────────────────────────────────────────────────
 $currentPage = 'researcher-dashboard';
 
-// Get available sensor types
-$sensorTypesResult = $conn->query("SELECT DISTINCT sensor_type FROM sensors ORDER BY sensor_type");
+// Get available sensor types (excluding unwanted sensors)
+$sensorTypesResult = $conn->query("SELECT DISTINCT sensor_type FROM sensors WHERE sensor_type NOT IN ('humidity', 'pressure', 'flow_rate') ORDER BY sensor_type");
 $sensorTypes = [];
 while ($row = $sensorTypesResult->fetch_assoc()) {
     $sensorTypes[] = $row['sensor_type'];
+}
+
+// Fallback: if no sensors found, use default water quality sensors
+if (empty($sensorTypes)) {
+    $sensorTypes = ['temperature', 'ph_level', 'turbidity', 'dissolved_oxygen', 'water_level', 'sediments'];
 }
 
 // Default sensor type for display
