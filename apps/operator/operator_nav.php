@@ -366,7 +366,7 @@ $logoSrc = $assetBase . '/../../assets/logo.png';
       </div>
     </a>
 
-    <a href="/Aqua-Vision/apps/researcher/activitylog.php"
+    <a href="/Aqua-Vision/apps/operator/activitylog.php"
        class="av-nav-item <?= $currentPage === 'activity' ? 'active' : '' ?>"
        aria-current="<?= $currentPage === 'activity' ? 'page' : 'false' ?>">
       <div class="av-nav-icon" aria-hidden="true">
@@ -376,8 +376,8 @@ $logoSrc = $assetBase . '/../../assets/logo.png';
         </svg>
       </div>
       <div class="av-nav-label-wrap">
-        <div class="av-nav-label">Activity Log</div>
-        <div class="av-nav-sublabel">View sensor data</div>
+        <div class="av-nav-label">My Activity</div>
+        <div class="av-nav-sublabel">Your work history</div>
       </div>
     </a>
 

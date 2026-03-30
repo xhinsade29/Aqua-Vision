@@ -34,6 +34,23 @@ if ($_SESSION['user_role'] !== 'admin') {
 
 // ── Helper Functions ───────────────────────────────────────────────────────────
 
+function getMaintenanceLogs($conn, $hours = 24) {
+    $sql = "SELECT ml.maintenance_id, ml.maintenance_type, ml.notes, ml.damage_level, 
+                   ml.malfunction_type, ml.performed_at,
+                   d.device_name, d.device_id,
+                   u.full_name as operator_name, u.user_id
+            FROM maintenance_logs ml
+            JOIN devices d ON d.device_id = ml.device_id
+            JOIN users u ON u.user_id = ml.performed_by
+            WHERE ml.performed_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            ORDER BY ml.performed_at DESC
+            LIMIT 50";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('i', $hours);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
 /**
  * Get sensor reading history for a device
  */
@@ -176,6 +193,9 @@ $devices = $conn->query("SELECT device_id, device_name, status FROM devices ORDE
 
 // Get activity timeline
 $timeline = getActivityTimeline($conn, $hoursFilter);
+
+// Get maintenance logs from operators
+$maintenanceLogs = getMaintenanceLogs($conn, $hoursFilter);
 
 // Get alert statistics
 $alertStats = $conn->query("SELECT 
@@ -679,6 +699,96 @@ if (($_GET['action'] ?? '') === 'fetch') {
                                     </div>
                                 </div>
                             <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+        <!-- Maintenance Logs Section -->
+        <div class="timeline-container" style="margin-top: 24px;">
+            <div class="timeline-header" style="background: linear-gradient(135deg, #0891b2, #06b6d4);">
+                <span>🔧 Operator Maintenance Logs (<?= count($maintenanceLogs) ?>)</span>
+            </div>
+            <div class="timeline-body">
+                <?php if (empty($maintenanceLogs)): ?>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>No maintenance logs recorded in the last <?= $hoursFilter ?> hours</p>
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($maintenanceLogs as $log): ?>
+                        <div class="timeline-item">
+                            <div class="timeline-icon" style="background: #cffafe;">🔧</div>
+                            <div class="timeline-content">
+                                <div class="timeline-title">
+                                    <?= ucfirst(str_replace('_', ' ', $log['maintenance_type'])) ?>
+                                    <span class="timeline-badge info">Maintenance</span>
+                                    <?php if ($log['damage_level'] !== 'none'): ?>
+                                        <span class="timeline-badge critical">Damage: <?= ucfirst($log['damage_level']) ?></span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="timeline-desc">
+                                    <strong><?= htmlspecialchars($log['device_name']) ?></strong>
+                                    <?php if ($log['malfunction_type']): ?>
+                                        <br><span style="color: var(--warning);">⚠️ <?= htmlspecialchars($log['malfunction_type']) ?></span>
+                                    <?php endif; ?>
+                                    <?php if ($log['notes']): ?>
+                                        <div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--gray-50); border-radius: 4px; font-size: 0.85rem;">
+                                            <?= htmlspecialchars($log['notes']) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="timeline-meta">
+                                    <?= date('M d, Y H:i:s', strtotime($log['performed_at'])) ?>
+                                    • By: <?= htmlspecialchars($log['operator_name']) ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+        <!-- Maintenance Logs Section -->
+        <div class="timeline-container" style="margin-top: 24px;">
+            <div class="timeline-header" style="background: linear-gradient(135deg, #0891b2, #06b6d4);">
+                <span>🔧 Operator Maintenance Logs (<?= count($maintenanceLogs) ?>)</span>
+            </div>
+            <div class="timeline-body">
+                <?php if (empty($maintenanceLogs)): ?>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>No maintenance logs recorded in the last <?= $hoursFilter ?> hours</p>
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($maintenanceLogs as $log): ?>
+                        <div class="timeline-item">
+                            <div class="timeline-icon" style="background: #cffafe;">🔧</div>
+                            <div class="timeline-content">
+                                <div class="timeline-title">
+                                    <?= ucfirst(str_replace('_', ' ', $log['maintenance_type'])) ?>
+                                    <span class="timeline-badge info">Maintenance</span>
+                                    <?php if ($log['damage_level'] !== 'none'): ?>
+                                        <span class="timeline-badge critical">Damage: <?= ucfirst($log['damage_level']) ?></span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="timeline-desc">
+                                    <strong><?= htmlspecialchars($log['device_name']) ?></strong>
+                                    <?php if ($log['malfunction_type']): ?>
+                                        <br><span style="color: var(--warning);">⚠️ <?= htmlspecialchars($log['malfunction_type']) ?></span>
+                                    <?php endif; ?>
+                                    <?php if ($log['notes']): ?>
+                                        <div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--gray-50); border-radius: 4px; font-size: 0.85rem;">
+                                            <?= htmlspecialchars($log['notes']) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="timeline-meta">
+                                    <?= date('M d, Y H:i:s', strtotime($log['performed_at'])) ?>
+                                    • By: <?= htmlspecialchars($log['operator_name']) ?>
+                                </div>
+                            </div>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
