@@ -468,6 +468,26 @@ $totalDevices = count($deviceActivity);
             <p>Comprehensive water quality analysis and system performance reports</p>
         </div>
 
+        <!-- Summary Stats -->
+        <div class="stats-grid">
+            <div class="stat-card success">
+                <h3><?= number_format($totalReadings) ?></h3>
+                <p>Total Readings (<?= $reportDays ?>d)</p>
+            </div>
+            <div class="stat-card info">
+                <h3><?= $activeDevices ?>/<?= $totalDevices ?></h3>
+                <p>Active Devices</p>
+            </div>
+            <div class="stat-card warning">
+                <h3><?= number_format($totalAlerts) ?></h3>
+                <p>Total Alerts</p>
+            </div>
+            <div class="stat-card">
+                <h3><?= count($sensorStats) ?></h3>
+                <p>Sensor Types</p>
+            </div>
+        </div>
+
         <!-- Filters -->
         <div class="filters">
             <div class="filter-group">
@@ -522,26 +542,6 @@ $totalDevices = count($deviceActivity);
             </div>
             <a href="reports.php" class="btn btn-secondary">Reset Filters</a>
             <button onclick="exportReport()" class="btn btn-primary">📥 Export Report</button>
-        </div>
-
-        <!-- Summary Stats -->
-        <div class="stats-grid">
-            <div class="stat-card success">
-                <h3><?= number_format($totalReadings) ?></h3>
-                <p>Total Readings (<?= $reportDays ?>d)</p>
-            </div>
-            <div class="stat-card info">
-                <h3><?= $activeDevices ?>/<?= $totalDevices ?></h3>
-                <p>Active Devices</p>
-            </div>
-            <div class="stat-card warning">
-                <h3><?= number_format($totalAlerts) ?></h3>
-                <p>Total Alerts</p>
-            </div>
-            <div class="stat-card">
-                <h3><?= count($sensorStats) ?></h3>
-                <p>Sensor Types</p>
-            </div>
         </div>
 
         <!-- Charts Grid -->
