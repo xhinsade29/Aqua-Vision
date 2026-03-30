@@ -27,20 +27,51 @@ include '../../assets/navigation.php';
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
 
-function getSensorReadingsStats($conn, $days = 7) {
+function getSensorReadingsStats($conn, $deviceId, $sensorType, $section, $status, $days = 7) {
     $sql = "SELECT 
-        sensor_type,
+        s.sensor_type,
         COUNT(*) as total_readings,
-        AVG(value) as avg_value,
-        MIN(value) as min_value,
-        MAX(value) as max_value,
-        STDDEV(value) as std_dev
+        AVG(sr.value) as avg_value,
+        MIN(sr.value) as min_value,
+        MAX(sr.value) as max_value,
+        STDDEV(sr.value) as std_dev
     FROM sensor_readings sr
     JOIN sensors s ON s.sensor_id = sr.sensor_id
-    WHERE sr.recorded_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-    GROUP BY sensor_type";
+    JOIN devices d ON d.device_id = s.device_id
+    LEFT JOIN locations l ON l.location_id = d.location_id
+    WHERE sr.recorded_at >= DATE_SUB(NOW(), INTERVAL ? DAY)";
+    
+    $params = [$days];
+    $types = 'i';
+    
+    if ($deviceId) {
+        $sql .= " AND d.device_id = ?";
+        $params[] = $deviceId;
+        $types .= 'i';
+    }
+    
+    if ($sensorType) {
+        $sql .= " AND s.sensor_type = ?";
+        $params[] = $sensorType;
+        $types .= 's';
+    }
+    
+    if ($section) {
+        $sql .= " AND l.river_section = ?";
+        $params[] = $section;
+        $types .= 's';
+    }
+    
+    if ($status) {
+        $sql .= " AND d.status = ?";
+        $params[] = $status;
+        $types .= 's';
+    }
+    
+    $sql .= " GROUP BY s.sensor_type";
+    
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param('i', $days);
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
@@ -61,7 +92,7 @@ function getAlertSummary($conn, $days = 7) {
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
-function getDeviceActivity($conn, $days = 7) {
+function getDeviceActivity($conn, $deviceId, $sensorType, $section, $status, $days = 7) {
     $sql = "SELECT 
         d.device_name,
         d.device_id,
@@ -73,28 +104,90 @@ function getDeviceActivity($conn, $days = 7) {
     LEFT JOIN sensors s ON s.device_id = d.device_id
     LEFT JOIN sensor_readings sr ON sr.sensor_id = s.sensor_id 
         AND sr.recorded_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-    GROUP BY d.device_id, d.device_name, d.status";
+    LEFT JOIN locations l ON l.location_id = d.location_id
+    WHERE 1=1";
+    
+    $params = [$days];
+    $types = 'i';
+    
+    if ($deviceId) {
+        $sql .= " AND d.device_id = ?";
+        $params[] = $deviceId;
+        $types .= 'i';
+    }
+    
+    if ($sensorType) {
+        $sql .= " AND s.sensor_type = ?";
+        $params[] = $sensorType;
+        $types .= 's';
+    }
+    
+    if ($section) {
+        $sql .= " AND l.river_section = ?";
+        $params[] = $section;
+        $types .= 's';
+    }
+    
+    if ($status) {
+        $sql .= " AND d.status = ?";
+        $params[] = $status;
+        $types .= 's';
+    }
+    
+    $sql .= " GROUP BY d.device_id, d.device_name, d.status";
+    
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param('i', $days);
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
-function getDailyReadingsTrend($conn, $days = 7) {
+function getDailyReadingsTrend($conn, $deviceId, $sensorType, $section, $status, $days = 7) {
     $sql = "SELECT 
-        DATE(recorded_at) as reading_date,
+        DATE(sr.recorded_at) as reading_date,
         COUNT(*) as total_readings
-    FROM sensor_readings
-    WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-    GROUP BY DATE(recorded_at)
-    ORDER BY reading_date";
+    FROM sensor_readings sr
+    JOIN sensors s ON s.sensor_id = sr.sensor_id
+    JOIN devices d ON d.device_id = s.device_id
+    LEFT JOIN locations l ON l.location_id = d.location_id
+    WHERE sr.recorded_at >= DATE_SUB(NOW(), INTERVAL ? DAY)";
+    
+    $params = [$days];
+    $types = 'i';
+    
+    if ($deviceId) {
+        $sql .= " AND d.device_id = ?";
+        $params[] = $deviceId;
+        $types .= 'i';
+    }
+    
+    if ($sensorType) {
+        $sql .= " AND s.sensor_type = ?";
+        $params[] = $sensorType;
+        $types .= 's';
+    }
+    
+    if ($section) {
+        $sql .= " AND l.river_section = ?";
+        $params[] = $section;
+        $types .= 's';
+    }
+    
+    if ($status) {
+        $sql .= " AND d.status = ?";
+        $params[] = $status;
+        $types .= 's';
+    }
+    
+    $sql .= " GROUP BY DATE(sr.recorded_at) ORDER BY reading_date";
+    
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param('i', $days);
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
-function getRiverSectionStats($conn, $days = 7) {
+function getRiverSectionStats($conn, $deviceId, $sensorType, $section, $status, $days = 7) {
     $sql = "SELECT 
         l.river_section,
         COUNT(DISTINCT d.device_id) as device_count,
@@ -107,9 +200,39 @@ function getRiverSectionStats($conn, $days = 7) {
     LEFT JOIN sensors s ON s.device_id = d.device_id
     LEFT JOIN sensor_readings sr ON sr.sensor_id = s.sensor_id 
         AND sr.recorded_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-    GROUP BY l.river_section";
+    WHERE 1=1";
+    
+    $params = [$days];
+    $types = 'i';
+    
+    if ($deviceId) {
+        $sql .= " AND d.device_id = ?";
+        $params[] = $deviceId;
+        $types .= 'i';
+    }
+    
+    if ($sensorType) {
+        $sql .= " AND s.sensor_type = ?";
+        $params[] = $sensorType;
+        $types .= 's';
+    }
+    
+    if ($section) {
+        $sql .= " AND l.river_section = ?";
+        $params[] = $section;
+        $types .= 's';
+    }
+    
+    if ($status) {
+        $sql .= " AND d.status = ?";
+        $params[] = $status;
+        $types .= 's';
+    }
+    
+    $sql .= " GROUP BY l.river_section";
+    
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param('i', $days);
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
@@ -177,11 +300,11 @@ $selectedSensor = $_GET['sensor'] ?? null;
 $selectedSection = $_GET['section'] ?? null;
 $selectedStatus = $_GET['status'] ?? null;
 $allDevices = getAllDevices($conn);
-$sensorStats = getSensorReadingsStats($conn, $reportDays);
+$sensorStats = getSensorReadingsStats($conn, $selectedDevice, $selectedSensor, $selectedSection, $selectedStatus, $reportDays);
 $alertSummary = getAlertSummary($conn, $reportDays);
-$deviceActivity = getDeviceActivity($conn, $reportDays);
-$dailyTrend = getDailyReadingsTrend($conn, $reportDays);
-$sectionStats = getRiverSectionStats($conn, $reportDays);
+$deviceActivity = getDeviceActivity($conn, $selectedDevice, $selectedSensor, $selectedSection, $selectedStatus, $reportDays);
+$dailyTrend = getDailyReadingsTrend($conn, $selectedDevice, $selectedSensor, $selectedSection, $selectedStatus, $reportDays);
+$sectionStats = getRiverSectionStats($conn, $selectedDevice, $selectedSensor, $selectedSection, $selectedStatus, $reportDays);
 $deviceReadings = getDeviceSensorReadings($conn, $selectedDevice, $selectedSensor, $selectedSection, $selectedStatus, $reportDays, 100);
 
 // Calculate summary metrics
