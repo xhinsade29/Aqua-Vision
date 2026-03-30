@@ -17,24 +17,12 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_once 'database/config.php';
     
-    // Helper function to log activity
-    function log_activity($conn, $action, $details = '') {
-        $userId = $_SESSION['user_id'] ?? null;
-        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
-        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
-        
-        $stmt = $conn->prepare("INSERT INTO system_logs (user_id, action, details, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("issss", $userId, $action, $details, $ipAddress, $userAgent);
-        $stmt->execute();
-        $stmt->close();
-    }
-    
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
     
     if (empty($username) || empty($password)) {
         $error = 'Please enter both username and password';
-        log_activity($conn, 'LOGIN_FAILED', "Login attempt with empty username or password");
+        log_activity('LOGIN_FAILED', "Login attempt with empty username or password");
     } else {
         // Check user credentials
         $stmt = $conn->prepare("
@@ -58,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_role'] = $user['role'];
                 
                 // Log successful login
-                log_activity($conn, 'LOGIN_SUCCESS', "User {$user['username']} logged in successfully");
+                log_activity('LOGIN_SUCCESS', "User {$user['username']} logged in successfully");
                 
                 // Set success message for toast
                 $_SESSION['success'] = "Welcome back, {$user['full_name']}!";
@@ -68,11 +56,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit();
             } else {
                 $error = 'Invalid password or account is inactive';
-                log_activity($conn, 'LOGIN_FAILED', "Failed login attempt for user: {$user['username']} - Invalid password or inactive account");
+                log_activity('LOGIN_FAILED', "Failed login attempt for user: {$user['username']} - Invalid password or inactive account");
             }
         } else {
             $error = 'User not found';
-            log_activity($conn, 'LOGIN_FAILED', "Failed login attempt for username: {$username} - User not found");
+            log_activity('LOGIN_FAILED', "Failed login attempt for username: {$username} - User not found");
         }
         
         $stmt->close();
