@@ -51,17 +51,24 @@ function getMyResolvedAlerts($conn, $userId, $hours = 24) {
 }
 
 function getMyMaintenanceLogs($conn, $userId, $hours = 24) {
-    $sql = "SELECT ml.maintenance_id, ml.maintenance_type, ml.notes, ml.damage_level, 
-                   ml.malfunction_type, ml.performed_at,
-                   d.device_name, d.device_id
-            FROM maintenance_logs ml
-            JOIN devices d ON d.device_id = ml.device_id
-            WHERE ml.performed_by = ? AND ml.performed_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
-            ORDER BY ml.performed_at DESC";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ii", $userId, $hours);
-    $stmt->execute();
-    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    try {
+        $sql = "SELECT ml.maintenance_id, ml.maintenance_type, ml.notes, ml.damage_level, 
+                       ml.malfunction_type, ml.performed_at,
+                       d.device_name, d.device_id
+                FROM maintenance_logs ml
+                JOIN devices d ON d.device_id = ml.device_id
+                WHERE ml.performed_by = ? AND ml.performed_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+                ORDER BY ml.performed_at DESC";
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) {
+            return []; // Table doesn't exist
+        }
+        $stmt->bind_param("ii", $userId, $hours);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    } catch (Exception $e) {
+        return []; // Return empty if table missing
+    }
 }
 
 function getDeviceStatusChanges($conn, $hours = 24) {
