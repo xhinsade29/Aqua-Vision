@@ -302,6 +302,21 @@ INSERT IGNORE INTO maintenance_logs (device_id, performed_by, maintenance_type, 
 (2, 1, 'cleaning', 'Cleaned turbidity sensor housing', DATE_SUB(NOW(), INTERVAL 5 DAY)),
 (3, 1, 'inspection', 'Routine inspection of device components', DATE_SUB(NOW(), INTERVAL 3 DAY));
 
+-- Insert sample system logs
+INSERT IGNORE INTO system_logs (user_id, action, details, ip_address, created_at) VALUES
+(1, 'login', 'Admin logged in successfully', '192.168.1.100', DATE_SUB(NOW(), INTERVAL 22 HOUR)),
+(2, 'login', 'Operator logged in successfully', '192.168.1.101', DATE_SUB(NOW(), INTERVAL 20 HOUR)),
+(2, 'alert_acknowledged', 'Acknowledged temperature alert on WQ-Upstream-Start', '192.168.1.101', DATE_SUB(NOW(), INTERVAL 18 HOUR)),
+(2, 'maintenance_logged', 'Logged calibration maintenance for device WQ-Upstream-Start', '192.168.1.101', DATE_SUB(NOW(), INTERVAL 16 HOUR)),
+(1, 'device_status_update', 'Changed device WQ-Midstream-Start status to active', '192.168.1.100', DATE_SUB(NOW(), INTERVAL 14 HOUR)),
+(2, 'alert_resolved', 'Resolved pH level alert on WQ-Upstream-End', '192.168.1.101', DATE_SUB(NOW(), INTERVAL 12 HOUR)),
+(4, 'login', 'Researcher logged in successfully', '192.168.1.102', DATE_SUB(NOW(), INTERVAL 10 HOUR)),
+(2, 'maintenance_logged', 'Logged cleaning maintenance for device WQ-Upstream-End', '192.168.1.101', DATE_SUB(NOW(), INTERVAL 8 HOUR)),
+(1, 'settings_updated', 'Updated alert email settings', '192.168.1.100', DATE_SUB(NOW(), INTERVAL 6 HOUR)),
+(2, 'device_status_update', 'Changed device WQ-Downstream-Start status to maintenance', '192.168.1.101', DATE_SUB(NOW(), INTERVAL 4 HOUR)),
+(2, 'alert_acknowledged', 'Acknowledged turbidity alert on WQ-Midstream-End', '192.168.1.101', DATE_SUB(NOW(), INTERVAL 2 HOUR)),
+(1, 'logout', 'Admin logged out', '192.168.1.100', DATE_SUB(NOW(), INTERVAL 1 HOUR));
+
 -- Insert sample system settings
 INSERT IGNORE INTO system_settings (setting_key, setting_value, setting_type, description) VALUES
 ('alert_email_enabled', 'true', 'boolean', 'Enable email alerts for critical notifications'),

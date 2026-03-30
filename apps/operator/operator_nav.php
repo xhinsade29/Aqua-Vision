@@ -382,22 +382,6 @@ $logoSrc = $assetBase . '/../../assets/logo.png';
     </a>
 
     <div class="av-nav-divider" role="separator"></div>
-
-    <div class="av-section-label" aria-hidden="true">System</div>
-
-    <a href="/Aqua-Vision/apps/admin/activitylog.php"
-       class="av-nav-item <?= $currentPage === 'system-logs' ? 'active' : '' ?>"
-       aria-current="<?= $currentPage === 'system-logs' ? 'page' : 'false' ?>">
-      <div class="av-nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <path d="M3 12h10M3 8h7M3 4h4" stroke="#4988C4" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <div class="av-nav-label-wrap">
-        <div class="av-nav-label">System Logs</div>
-        <div class="av-nav-sublabel">View system events</div>
-      </div>
-    </a>
   </div>
 
   <div class="av-user-footer">
