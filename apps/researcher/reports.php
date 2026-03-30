@@ -392,6 +392,7 @@ $templates = [
 </head>
 <body>
     <?php include __DIR__ . '/researcher_nav.php'; ?>
+    <?php include __DIR__ . '/../../assets/toast.php'; ?>
     
     <div class="main-content">
         <div class="page-header">
