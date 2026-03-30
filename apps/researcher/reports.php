@@ -447,9 +447,9 @@ $templates = [
                                 <select name="sensor_type" class="form-select">
                                     <option value="">All Sensors</option>
                                     <?php foreach ($sensorTypes as $type): ?>
-                                        <option value="<?= $type['sensor_type'] ?>" 
-                                                <?= ($_POST['sensor_type'] ?? '') === $type['sensor_type'] ? 'selected' : '' ?>>
-                                            <?= ucfirst(str_replace('_', ' ', $type['sensor_type'])) ?>
+                                        <option value="<?= $type ?>" 
+                                                <?= ($_POST['sensor_type'] ?? '') === $type ? 'selected' : '' ?>>
+                                            <?= ucfirst(str_replace('_', ' ', $type)) ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
