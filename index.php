@@ -247,15 +247,31 @@ $totalAlerts = count($activeAlerts);
                 </div>
                 <div style="display:flex;flex-direction:column;padding:12px">
                     <div class="sim-stats-2">
-                        <div class="sim-stat-card"><div class="sim-stat-l">Readings</div><div id="simCount" class="sim-stat-v" style="color:#7c3aed">0</div></div>
-                        <div class="sim-stat-card"><div class="sim-stat-l">Alerts</div><div id="simAlerts" class="sim-stat-v" style="color:var(--warn)">0</div></div>
-                        <div class="sim-stat-card wide"><div class="sim-stat-l">Last Read</div><div id="simLastTs" style="font-family:var(--mono);font-size:13px;color:var(--text);margin-top:4px">—</div></div>
-                        <div class="sim-stat-card wide"><div class="sim-stat-l">Device</div><div id="simLastDevice" style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:4px;line-height:1.5">—</div></div>
+                        <div class="sim-stat-card"><div class="sim-stat-l">Readings</div><div id="statReadings" class="sim-stat-v" style="color:#7c3aed"><?= count($deviceReadings) ?></div></div>
+                        <div class="sim-stat-card"><div class="sim-stat-l">Alerts</div><div id="statAlerts" class="sim-stat-v" style="color:var(--warn)"><?= $totalAlerts ?></div></div>
+                        <div class="sim-stat-card wide"><div class="sim-stat-l">Last Update</div><div style="font-family:var(--mono);font-size:13px;color:var(--text);margin-top:4px"><?= date('M d, H:i') ?></div></div>
+                        <div class="sim-stat-card wide"><div class="sim-stat-l">Status</div><div style="font-size:11px;color:var(--good);font-family:var(--mono);margin-top:4px;line-height:1.5">● Live Monitoring</div></div>
                     </div>
                     <div style="display:flex;flex-direction:column;height:280px">
-                        <div class="sim-log-label" style="margin-bottom:6px;flex-shrink:0">Simulation Log</div>
-                        <div id="simLog" style="height:250px;background:#f8f9fa;border:1px solid #e9ecef;border-radius:var(--radius);padding:.75rem;overflow-y:auto;font-family:var(--mono);font-size:10.5px;line-height:1.6">
-                            <div style="color:var(--text3)">Monitoring stopped — press ▶ Start to begin.</div>
+                        <div class="sim-log-label" style="margin-bottom:6px;flex-shrink:0">Recent Activity</div>
+                        <div id="activityLog" style="height:250px;background:#f8f9fa;border:1px solid #e9ecef;border-radius:var(--radius);padding:.75rem;overflow-y:auto;font-family:var(--mono);font-size:10.5px;line-height:1.6">
+                            <?php if (!empty($deviceReadings)): ?>
+                                <?php foreach (array_slice($deviceReadings, 0, 5) as $dev): ?>
+                                    <?php $firstReading = reset($dev['readings']); ?>
+                                    <div style="margin-bottom:8px;padding:6px;background:white;border-radius:4px;border-left:3px solid var(--good);">
+                                        <div style="font-weight:600;color:var(--c1);"><?= htmlspecialchars($dev['device_name']) ?></div>
+                                        <div style="color:var(--text3);">📍 <?= htmlspecialchars($dev['location_name']) ?></div>
+                                        <div style="color:var(--text2);margin-top:2px;">
+                                            <?php if ($firstReading): ?>
+                                                <?= ucfirst(array_key_first($dev['readings'])) ?>: <?= number_format($firstReading['value'], 2) ?> <?= $firstReading['unit'] ?> 
+                                                <span style="color:var(--text3);">• <?= date('H:i', strtotime($firstReading['recorded_at'])) ?></span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <div style="color:var(--text3);text-align:center;padding:20px;">No recent readings available</div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
