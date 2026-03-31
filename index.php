@@ -27,18 +27,27 @@ if ($locResult) {
     $locations = $locResult->fetch_all(MYSQLI_ASSOC);
 }
 
-// Get active devices with readings
-$devicesRes = $conn->query("SELECT d.device_id, d.device_name, d.status,
-                                   l.location_name, l.river_section, l.latitude, l.longitude
-                            FROM devices d
-                            LEFT JOIN locations l ON l.location_id = d.location_id
-                            WHERE d.status='active'");
+// Get active devices with readings (matching admin query exactly)
+$devicesRes = $conn->query("SELECT d.device_id,d.device_name,d.status,d.last_active,l.location_name,l.river_section,l.latitude,l.longitude,l.location_id FROM devices d LEFT JOIN locations l ON l.location_id=d.location_id WHERE d.status='active' ORDER BY l.river_section,d.device_name");
 $devices = [];
+$mapLocations = [];
+$locationDevices = [];
 if ($devicesRes) {
     while ($r = $devicesRes->fetch_assoc()) {
         $devices[] = $r;
-        if ($r['latitude'] && $r['longitude']) {
-            $mapLocations[] = $r;
+        // Build map locations from device data (same as admin)
+        if ($r['location_id'] && !isset($locationDevices[$r['location_id']])) {
+            $locationDevices[$r['location_id']] = [];
+            $mapLocations[] = [
+                'location_id' => $r['location_id'],
+                'location_name' => $r['location_name'],
+                'latitude' => $r['latitude'],
+                'longitude' => $r['longitude'],
+                'river_section' => $r['river_section']
+            ];
+        }
+        if ($r['location_id']) {
+            $locationDevices[$r['location_id']][] = $r;
         }
     }
 }
@@ -365,10 +374,96 @@ $totalAlerts = count($activeAlerts);
         </p>
     </footer>
     <script>
-        const map = L.map('map').setView([8.4867, 124.6489], 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
-        <?php foreach ($mapLocations as $loc): ?><?php if ($loc['latitude'] && $loc['longitude']): ?>L.marker([<?= $loc['latitude'] ?>, <?= $loc['longitude'] ?>]).addTo(map).bindPopup('<strong><?= htmlspecialchars($loc['device_name']) ?></strong><br><?= ucfirst($loc['river_section'] ?? 'unknown') ?> section');<?php endif; ?><?php endforeach; ?>
-        <?php if (!empty($mapLocations)): ?>const bounds = [<?php foreach ($mapLocations as $loc): ?><?php if ($loc['latitude'] && $loc['longitude']): ?>[<?= $loc['latitude'] ?>, <?= $loc['longitude'] ?>],<?php endif; ?><?php endforeach; ?>];if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });<?php endif; ?>
+        // Mangima River coordinates (same as admin dashboard)
+        const mangimaStart = [8.345958, 124.898607];
+        const mangimaEnd = [8.413179, 124.909497];
+        const centerLat = (mangimaStart[0] + mangimaEnd[0]) / 2;
+        const centerLng = (mangimaStart[1] + mangimaEnd[1]) / 2;
+        
+        // Create map centered on Mangima River
+        const map = L.map('map', {
+            zoomControl: false,
+            minZoom: 12,
+            maxZoom: 16,
+            maxBounds: [[8.32, 124.88], [8.42, 124.93]],
+            maxBoundsViscosity: 1.0
+        }).setView([centerLat, centerLng], 13);
+        
+        L.control.zoom({position: 'bottomright'}).addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CartoDB',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+        
+        // River path coordinates (Mangima River)
+        const R = [[8.345958,124.898607],[8.346955,124.899036],[8.347603,124.898081],[8.349471,124.896461],[8.349216,124.895474],[8.349535,124.894755],[8.348909,124.894058],[8.349881,124.893209],[8.352050,124.889584],[8.351096,124.889497],[8.351978,124.888415],[8.352369,124.887056],[8.352210,124.886676],[8.352643,124.886427],[8.353468,124.884863],[8.355492,124.883376],[8.356292,124.881332],[8.358270,124.881140],[8.368532,124.875713],[8.373977,124.876690],[8.381657,124.897203],[8.394810,124.903483],[8.396343,124.907500],[8.399906,124.911121],[8.400757,124.910773],[8.401407,124.910581],[8.401636,124.910868],[8.401774,124.911007],[8.402125,124.911168],[8.402489,124.911218],[8.402853,124.911196],[8.403020,124.911119],[8.403792,124.910506],[8.405310,124.909972],[8.405901,124.909983],[8.406337,124.910087],[8.406533,124.910179],[8.406700,124.910291],[8.406745,124.910385],[8.406713,124.910512],[8.405924,124.911388],[8.405818,124.911576],[8.405829,124.911689],[8.405924,124.911801],[8.406275,124.911984],[8.406715,124.912414],[8.407049,124.912661],[8.409034,124.913466],[8.409793,124.913708],[8.410064,124.913713],[8.410472,124.913676],[8.411629,124.913198],[8.412245,124.912800],[8.412515,124.912462],[8.412632,124.911962],[8.413237,124.909739],[8.413179,124.909497]];
+        
+        // Draw river with multiple layers for depth effect
+        L.polyline(R, {color: '#0d1117', weight: 18, opacity: .12}).addTo(map);
+        L.polyline(R, {color: '#1a56db', weight: 8, opacity: .55}).addTo(map);
+        L.polyline(R, {color: '#60a5fa', weight: 4, opacity: .85}).addTo(map);
+        
+        // Animated flow line
+        const fl = L.polyline(R, {color: '#93c5fd', weight: 2.5, opacity: .65, dashArray: '10 20', dashOffset: '0'}).addTo(map);
+        let doff = 0;
+        setInterval(() => { doff -= 1.5; fl.setStyle({dashOffset: String(doff)}); }, 60);
+        
+        // Flow direction arrows
+        [3,7,10,14,18,22].forEach(i => {
+            if (i >= R.length-1) return;
+            const from = R[i], to = R[i+1];
+            const lat = (from[0] + to[0]) / 2;
+            const lng = (from[1] + to[1]) / 2;
+            const angle = Math.atan2(to[1]-from[1], to[0]-from[0]) * 180 / Math.PI - 90;
+            L.marker([lat, lng], {icon: L.divIcon({html: `<div style="transform:rotate(${angle}deg);color:#60a5fa;font-size:9px;opacity:.6">▲</div>`, iconSize: [10,10], iconAnchor: [5,5], className: ''}), interactive: false}).addTo(map);
+        });
+        
+        // Start and End markers
+        function pIcon(color, label) {
+            return L.divIcon({html: `<div style="position:relative;width:40px;height:40px"><div style="position:absolute;inset:0;border-radius:50%;background:${color};opacity:.12;animation:ripple 2s ease-out infinite"></div><div style="position:absolute;inset:8px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.15)"></div><div style="position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:9px;font-weight:600;color:${color};font-family:sans-serif">${label}</div></div>`, iconSize: [40,40], iconAnchor: [20,20], className: ''});
+        }
+        L.marker(mangimaStart, {icon: pIcon('#059669', 'START')}).addTo(map);
+        L.marker(mangimaEnd, {icon: pIcon('#dc2626', 'END')}).addTo(map);
+        
+        // River label
+        L.marker([8.368, 124.882], {icon: L.divIcon({html: `<div style="font-family:serif;font-size:12px;font-style:italic;color:#1a56db;opacity:.5;white-space:nowrap;transform:rotate(42deg)">Mangima River</div>`, iconSize: [130,20], iconAnchor: [65,10], className: ''}), interactive: false}).addTo(map);
+        
+        // Add ripple animation style
+        if (!document.getElementById('ripple-style')) {
+            const s = document.createElement('style');
+            s.id = 'ripple-style';
+            s.textContent = '@keyframes ripple{0%{transform:scale(.6);opacity:.9}100%{transform:scale(2.4);opacity:0}}';
+            document.head.appendChild(s);
+        }
+        
+        // Location markers with river section colors
+        const sC = {upstream: '#059669', midstream: '#d97706', downstream: '#dc2626'};
+        const sL = {upstream: 'Upstream', midstream: 'Midstream', downstream: 'Downstream'};
+        const _mapMk = {};
+        const locs = <?= json_encode(array_map(fn($l)=>['id'=>(int)$l['location_id'],'name'=>$l['location_name'],'lat'=>(float)$l['latitude'],'lng'=>(float)$l['longitude'],'section'=>$l['river_section']], $locations)) ?>;
+        const locationDevices = <?= json_encode($locationDevices, JSON_NUMERIC_CHECK) ?>;
+        
+        locs.forEach(loc => {
+            const color = sC[loc.section] || '#1a56db';
+            const devs = (locationDevices[loc.id] || []).filter(d => d.status === 'active');
+            const dHtml = devs.length > 0 ? 
+                `<div style="margin:8px 0;padding-top:8px;border-top:1px solid #f0f0f0"><div style="font-size:10px;font-weight:600;color:#0d1117;margin-bottom:4px;letter-spacing:.04em;text-transform:uppercase">Active Devices</div>${devs.map(d => {
+                    const c = '#059669';
+                    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-radius:4px;background:#f9fafb;margin-bottom:2px"><span style="font-size:11px;color:#0d1117;display:flex;align-items:center;gap:5px"><span style="width:5px;height:5px;border-radius:50%;background:${c};display:inline-block"></span>${d.device_name}</span><span style="font-size:10px;color:${c};font-weight:600">Active</span></div>`;
+                }).join('')}</div>` : 
+                `<div style="margin:8px 0;font-size:11px;color:#9ca3af;padding-top:8px;border-top:1px solid #f0f0f0">No active devices</div>`;
+            
+            const marker = L.circleMarker([loc.lat, loc.lng], {radius: 12, fillColor: color, color: '#fff', weight: 2.5, fillOpacity: .95}).addTo(map);
+            _mapMk[loc.id] = marker;
+            marker.bindPopup(`<div style="font-family:sans-serif;min-width:210px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:8px;height:8px;border-radius:50%;background:${color}"></div><div style="font-size:13px;font-weight:600;color:#0d1117">${sL[loc.section] || loc.section}</div></div><div style="font-size:11px;color:#3d4a5c;margin-bottom:4px">${loc.name}</div>${dHtml}<div style="font-size:10px;color:#8897aa;margin-top:6px;font-family:monospace;text-align:center">${loc.lat.toFixed(5)}°N · ${loc.lng.toFixed(5)}°E</div></div>`, {maxWidth: 250});
+            L.tooltip({permanent: true, direction: 'bottom', offset: [0, 12]}).setContent(`<span style="font-size:9px;font-weight:600;color:#3d4a5c;font-family:sans-serif;letter-spacing:.04em;text-transform:uppercase">${sL[loc.section] || loc.section}</span>`).setLatLng([loc.lat, loc.lng]).addTo(map);
+        });
+        
+        // Fit bounds to show river and all locations
+        const allPts = [...R, ...locs.map(l => [l.lat, l.lng])];
+        const bounds = L.latLngBounds(allPts);
+        if (bounds.isValid()) map.fitBounds(bounds.pad(.12));
     </script>
 </body>
 </html>
