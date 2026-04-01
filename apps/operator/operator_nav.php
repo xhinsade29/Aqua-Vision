@@ -1,28 +1,20 @@
 <?php
 /**
- * Aqua-Vision — Navigation Sidebar Component
- * Include this file on every page: <?php include 'assets/navigation.php'; ?>
- * Set $currentPage before including to highlight the active nav item.
- * e.g.  $currentPage = 'overview';
+ * Aqua-Vision — Operator Navigation Sidebar
+ * Location: apps/operator/operator_nav.php
  */
-$currentPage = $currentPage ?? 'overview';
+$currentPage = $currentPage ?? 'operator-dashboard';
 
-/**
- * Resolve the URL path to assets/logo.png regardless of where the
- * including page lives.  Works for both root-level and sub-directory pages.
- */
 $assetBase = rtrim(
     str_replace($_SERVER['DOCUMENT_ROOT'], '', dirname(__FILE__)),
     '/'
 );
-$logoSrc = $assetBase . '/logo.png';
+$logoSrc = $assetBase . '/../../assets/logo.png';
 ?>
 
 <style>
-  /* ── Google Fonts ─────────────────────────────────── */
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
 
-  /* ── Design Tokens ────────────────────────────────── */
   :root {
     --c1:          #0F2854;
     --c2:          #1C4D8D;
@@ -30,13 +22,14 @@ $logoSrc = $assetBase . '/logo.png';
     --c4:          #BDE8F5;
     --c4-soft:     rgba(189,232,245,0.13);
     --c4-hover:    rgba(189,232,245,0.20);
+    --operator:    #0891b2;
+    --operator-bg:  rgba(8, 145, 178, 0.13);
     --sidebar-w:   240px;
     --radius:      14px;
     --radius-sm:   8px;
     --transition:  0.22s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* ── Sidebar Shell ────────────────────────────────── */
   .av-sidebar {
     width: var(--sidebar-w);
     min-height: 100vh;
@@ -51,7 +44,6 @@ $logoSrc = $assetBase . '/logo.png';
     overflow-y: auto;
   }
 
-  /* subtle crosshatch texture */
   .av-sidebar::before {
     content: '';
     position: absolute;
@@ -60,7 +52,6 @@ $logoSrc = $assetBase . '/logo.png';
     pointer-events: none;
   }
 
-  /* ── Logo Area ────────────────────────────────────── */
   .av-logo-area {
     padding: 18px 16px 16px;
     border-bottom: 1px solid rgba(189,232,245,0.08);
@@ -73,11 +64,10 @@ $logoSrc = $assetBase . '/logo.png';
     gap: 11px;
   }
 
-  /* Enlarged icon wrapper — circular badge logo needs more room */
   .av-logo-icon {
     width: 48px;
     height: 48px;
-    border-radius: 50%;             /* circular to match the badge logo shape */
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -93,7 +83,7 @@ $logoSrc = $assetBase . '/logo.png';
   .av-logo-icon img {
     width: 100%;
     height: 100%;
-    object-fit: cover;              /* fills the circle cleanly */
+    object-fit: cover;
     display: block;
     border-radius: 50%;
   }
@@ -121,7 +111,6 @@ $logoSrc = $assetBase . '/logo.png';
     text-transform: uppercase;
   }
 
-  /* ── System Status Pill ───────────────────────────── */
   .av-status-pill {
     display: flex;
     align-items: center;
@@ -155,7 +144,20 @@ $logoSrc = $assetBase . '/logo.png';
     letter-spacing: 0.04em;
   }
 
-  /* ── Nav Sections ─────────────────────────────────── */
+  .av-role-badge {
+    margin-top: 8px;
+    padding: 4px 12px;
+    background: var(--operator-bg);
+    border: 1px solid var(--operator);
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--operator);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    width: fit-content;
+  }
+
   .av-nav-section {
     padding: 16px 12px 4px;
     flex: 1;
@@ -172,7 +174,6 @@ $logoSrc = $assetBase . '/logo.png';
     margin-bottom: 4px;
   }
 
-  /* ── Nav Items ────────────────────────────────────── */
   .av-nav-item {
     display: flex;
     align-items: center;
@@ -205,7 +206,6 @@ $logoSrc = $assetBase . '/logo.png';
     border-radius: 0 4px 4px 0;
   }
 
-  /* ── Nav Icon Box ─────────────────────────────────── */
   .av-nav-icon {
     width: 30px;
     height: 30px;
@@ -221,7 +221,6 @@ $logoSrc = $assetBase . '/logo.png';
   .av-nav-item.active .av-nav-icon { background: rgba(73,136,196,0.35); }
   .av-nav-icon svg { width: 14px; height: 14px; }
 
-  /* ── Nav Label ────────────────────────────────────── */
   .av-nav-label-wrap { flex: 1; }
 
   .av-nav-label {
@@ -235,7 +234,6 @@ $logoSrc = $assetBase . '/logo.png';
   .av-nav-sublabel { font-size: 10px; color: rgba(189,232,245,0.30); margin-top: 2px; }
   .av-nav-item.active .av-nav-label { color: var(--c4); }
 
-  /* ── Badges ───────────────────────────────────────── */
   .av-badge {
     font-size: 10px;
     font-weight: 600;
@@ -253,31 +251,12 @@ $logoSrc = $assetBase . '/logo.png';
     color: var(--c4);
   }
 
-  /* ── Divider ──────────────────────────────────────── */
   .av-nav-divider {
     height: 1px;
     background: rgba(189,232,245,0.07);
     margin: 10px 12px;
   }
 
-  /* ── Admin Section ────────────────────────────────── */
-  .av-admin-section {
-    padding: 8px 12px 12px;
-    border-top: 1px solid rgba(189,232,245,0.07);
-    position: relative;
-  }
-
-  .av-admin-label {
-    font-size: 10px;
-    font-weight: 500;
-    color: rgba(189,232,245,0.25);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 0 8px;
-    margin-bottom: 4px;
-  }
-
-  /* ── User Footer ──────────────────────────────────── */
   .av-user-footer {
     padding: 12px;
     border-top: 1px solid rgba(189,232,245,0.07);
@@ -300,7 +279,7 @@ $logoSrc = $assetBase . '/logo.png';
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--c2), var(--c3));
+    background: linear-gradient(135deg, var(--operator), var(--c3));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -328,45 +307,35 @@ $logoSrc = $assetBase . '/logo.png';
 
   .av-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--c4); }
 
-  /* ── Body offset so content doesn't hide under sidebar ── */
   body { margin-left: var(--sidebar-w); }
 </style>
 
-<!-- ═══════════════════════════════════════════════════
-     AQUA-VISION SIDEBAR NAVIGATION
-════════════════════════════════════════════════════ -->
-<nav class="av-sidebar" id="av-sidebar" aria-label="Main navigation">
-
-  <!-- Logo / Branding -->
+<nav class="av-sidebar" id="av-sidebar" aria-label="Operator navigation">
   <div class="av-logo-area">
     <div class="av-logo-row">
-
-      <!-- Logo image — resolves to assets/logo.png from document root -->
       <div class="av-logo-icon">
         <img src="<?= htmlspecialchars($logoSrc, ENT_QUOTES) ?>"
              alt="Aqua-Vision logo"
              onerror="this.style.display='none'">
       </div>
-
       <div class="av-logo-text">
         <span class="av-logo-title">Aqua-Vision</span>
-        <span class="av-logo-sub">River Monitor</span>
+        <span class="av-logo-sub">Operations Center</span>
       </div>
     </div>
-
+    <div class="av-role-badge">🔧 Operator</div>
     <div class="av-status-pill" role="status" aria-live="polite">
       <div class="av-status-dot"></div>
-      <span class="av-status-label">All Systems Active</span>
+      <span class="av-status-label">Monitoring Active</span>
     </div>
   </div>
 
-  <!-- ── Monitor Group ─────────────────────────────── -->
   <div class="av-nav-section">
-    <div class="av-section-label" aria-hidden="true">Monitor</div>
+    <div class="av-section-label" aria-hidden="true">Operations</div>
 
-    <a href="/Aqua-Vision/apps/admin/dashboard.php"
-       class="av-nav-item <?= $currentPage === 'overview' ? 'active' : '' ?>"
-       aria-current="<?= $currentPage === 'overview' ? 'page' : 'false' ?>">
+    <a href="/Aqua-Vision/apps/operator/dashboard.php"
+       class="av-nav-item <?= $currentPage === 'operator-dashboard' ? 'active' : '' ?>"
+       aria-current="<?= $currentPage === 'operator-dashboard' ? 'page' : 'false' ?>">
       <div class="av-nav-icon" aria-hidden="true">
         <svg viewBox="0 0 16 16" fill="none">
           <rect x="1" y="1" width="6" height="6" rx="1.5" fill="#BDE8F5"/>
@@ -377,48 +346,11 @@ $logoSrc = $assetBase . '/logo.png';
       </div>
       <div class="av-nav-label-wrap">
         <div class="av-nav-label">Dashboard</div>
-        <div class="av-nav-sublabel">River health &amp; alerts</div>
+        <div class="av-nav-sublabel">Manage devices & alerts</div>
       </div>
     </a>
 
-    <a href="/Aqua-Vision/apps/admin/activitylog.php"
-       class="av-nav-item <?= $currentPage === 'history' ? 'active' : '' ?>"
-       aria-current="<?= $currentPage === 'history' ? 'page' : 'false' ?>">
-      <div class="av-nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="8" r="5.5" stroke="#4988C4" stroke-width="1.4"/>
-          <path d="M8 5v3.5l2.5 1.5" stroke="#4988C4" stroke-width="1.4" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <div class="av-nav-label-wrap">
-        <div class="av-nav-label">Activity Logs</div>
-        <div class="av-nav-sublabel">Trends &amp; past data</div>
-      </div>
-    </a>
-
-    <a href="/Aqua-Vision/apps/admin/reports.php"
-       class="av-nav-item <?= $currentPage === 'reports' ? 'active' : '' ?>"
-       aria-current="<?= $currentPage === 'reports' ? 'page' : 'false' ?>">
-      <div class="av-nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <path d="M2 12 Q8 8, 14 12" stroke="#8B4513" stroke-width="1.5" fill="none"/>
-          <circle cx="4" cy="11" r="1" fill="#8B4513"/>
-          <circle cx="8" cy="10" r="1" fill="#8B4513"/>
-          <circle cx="12" cy="11" r="1" fill="#8B4513"/>
-        </svg>
-      </div>
-      <div class="av-nav-label-wrap">
-        <div class="av-nav-label">Reports</div>
-        <div class="av-nav-sublabel">Particles analysis</div>
-      </div>
-    </a>
-
-    <div class="av-nav-divider" role="separator"></div>
-
-    <!-- ── Infrastructure Group ──────────────────────── -->
-    <div class="av-section-label" aria-hidden="true">Infrastructure</div>
-
-    <a href="/Aqua-Vision/apps/admin/devices.php"
+    <a href="/Aqua-Vision/apps/operator/devices.php"
        class="av-nav-item <?= $currentPage === 'devices' ? 'active' : '' ?>"
        aria-current="<?= $currentPage === 'devices' ? 'page' : 'false' ?>">
       <div class="av-nav-icon" aria-hidden="true">
@@ -430,39 +362,34 @@ $logoSrc = $assetBase . '/logo.png';
       </div>
       <div class="av-nav-label-wrap">
         <div class="av-nav-label">Devices</div>
-        <div class="av-nav-sublabel">Equipment status</div>
+        <div class="av-nav-sublabel">Maintenance & repairs</div>
       </div>
     </a>
-  </div>
 
-  <!-- ── Admin Group ───────────────────────────────── -->
-  <div class="av-admin-section">
-    <div class="av-admin-label" aria-hidden="true">Admin</div>
-
-    <a href="/Aqua-Vision/apps/admin/users.php"
-       class="av-nav-item <?= $currentPage === 'users' ? 'active' : '' ?>"
-       aria-current="<?= $currentPage === 'users' ? 'page' : 'false' ?>">
+    <a href="/Aqua-Vision/apps/operator/activitylog.php"
+       class="av-nav-item <?= $currentPage === 'activity' ? 'active' : '' ?>"
+       aria-current="<?= $currentPage === 'activity' ? 'page' : 'false' ?>">
       <div class="av-nav-icon" aria-hidden="true">
         <svg viewBox="0 0 16 16" fill="none">
-          <circle cx="6" cy="5" r="2.2" stroke="#4988C4" stroke-width="1.4"/>
-          <path d="M1 13c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="#4988C4" stroke-width="1.4" stroke-linecap="round"/>
-          <path d="M12 7v4M10 9h4" stroke="#4988C4" stroke-width="1.4" stroke-linecap="round"/>
+          <circle cx="8" cy="8" r="5.5" stroke="#4988C4" stroke-width="1.4"/>
+          <path d="M8 5v3.5l2.5 1.5" stroke="#4988C4" stroke-width="1.4" stroke-linecap="round"/>
         </svg>
       </div>
       <div class="av-nav-label-wrap">
-        <div class="av-nav-label">User Management</div>
-        <div class="av-nav-sublabel">Roles &amp; access</div>
+        <div class="av-nav-label">My Activity</div>
+        <div class="av-nav-sublabel">Your work history</div>
       </div>
     </a>
+
+    <div class="av-nav-divider" role="separator"></div>
   </div>
 
-  <!-- ── User Footer ───────────────────────────────── -->
   <div class="av-user-footer">
     <a href="/Aqua-Vision/logout.php" class="av-user-card" role="button" tabindex="0" aria-label="Logout" onclick="return confirm('Are you sure you want to logout?');">
-      <div class="av-avatar" aria-hidden="true"><?= strtoupper(substr($_SESSION['user_name'] ?? 'U', 0, 1)) ?></div>
+      <div class="av-avatar" aria-hidden="true"><?= strtoupper(substr($_SESSION['user_name'] ?? 'O', 0, 1)) ?></div>
       <div class="av-user-info">
-        <div class="av-user-name"><?= htmlspecialchars($_SESSION['user_name'] ?? 'User') ?></div>
-        <div class="av-user-role"><?= ucfirst($_SESSION['user_role'] ?? 'User') ?> • Click to logout</div>
+        <div class="av-user-name"><?= htmlspecialchars($_SESSION['user_name'] ?? 'Operator') ?></div>
+        <div class="av-user-role"><?= ucfirst($_SESSION['user_role'] ?? 'Operator') ?> • Click to logout</div>
       </div>
       <div class="av-user-menu-btn" aria-hidden="true">
         <div class="av-dot"></div>
@@ -471,24 +398,7 @@ $logoSrc = $assetBase . '/logo.png';
       </div>
     </a>
   </div>
-
 </nav>
 
 <!-- Toast Notifications -->
-<?php include __DIR__ . '/toast.php'; ?>
-
-<?php
-// Show session-based toast messages
-if (isset($_SESSION['success'])) {
-    echo "<script>document.addEventListener('DOMContentLoaded', function() { showToast(" . json_encode($_SESSION['success']) . ", 'success', 5000); });</script>";
-    unset($_SESSION['success']);
-}
-if (isset($_SESSION['error'])) {
-    echo "<script>document.addEventListener('DOMContentLoaded', function() { showToast(" . json_encode($_SESSION['error']) . ", 'error', 8000); });</script>";
-    unset($_SESSION['error']);
-}
-if (isset($_SESSION['warning'])) {
-    echo "<script>document.addEventListener('DOMContentLoaded', function() { showToast(" . json_encode($_SESSION['warning']) . ", 'warning', 6000); });</script>";
-    unset($_SESSION['warning']);
-}
-?>
+<?php include __DIR__ . '/../../assets/toast.php'; ?>
