@@ -11,11 +11,7 @@ $currentPage = $currentPage ?? 'overview';
  * Resolve the URL path to assets/logo.png regardless of where the
  * including page lives.  Works for both root-level and sub-directory pages.
  */
-$assetBase = rtrim(
-    str_replace($_SERVER['DOCUMENT_ROOT'], '', dirname(__FILE__)),
-    '/'
-);
-$logoSrc = $assetBase . '/logo.png';
+$logoSrc = '/Aqua-Vision/assets/logo.png';
 ?>
 
 <style>
@@ -458,7 +454,7 @@ $logoSrc = $assetBase . '/logo.png';
 
   <!-- ── User Footer ───────────────────────────────── -->
   <div class="av-user-footer">
-    <a href="/Aqua-Vision/logout.php" class="av-user-card" role="button" tabindex="0" aria-label="Logout" onclick="return confirm('Are you sure you want to logout?');">
+    <div class="av-user-card" role="button" tabindex="0" aria-label="Logout" onclick="showLogoutModal()">
       <div class="av-avatar" aria-hidden="true"><?= strtoupper(substr($_SESSION['user_name'] ?? 'U', 0, 1)) ?></div>
       <div class="av-user-info">
         <div class="av-user-name"><?= htmlspecialchars($_SESSION['user_name'] ?? 'User') ?></div>
@@ -469,8 +465,165 @@ $logoSrc = $assetBase . '/logo.png';
         <div class="av-dot"></div>
         <div class="av-dot"></div>
       </div>
-    </a>
+    </div>
   </div>
+
+</nav>
+
+<!-- Logout Modal -->
+<div id="logoutModal" class="modal-overlay" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="modal-title">Confirm Logout</h3>
+      <button class="modal-close" onclick="hideLogoutModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>Are you sure you want to logout from Aqua-Vision?</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="hideLogoutModal()">Cancel</button>
+      <a href="/Aqua-Vision/logout.php" class="btn btn-primary">Logout</a>
+    </div>
+  </div>
+</div>
+
+<style>
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+  }
+
+  .modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: modalSlideIn 0.3s ease;
+  }
+
+  @keyframes modalSlideIn {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .modal-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .modal-close {
+    background: none;
+    border: none;
+    font-size: 28px;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: background 0.2s;
+  }
+
+  .modal-close:hover {
+    background: #f3f4f6;
+    color: #1f2937;
+  }
+
+  .modal-body {
+    padding: 24px;
+    color: #4b5563;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    line-height: 1.5;
+  }
+
+  .modal-footer {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+  }
+
+  .btn-secondary:hover {
+    background: #e5e7eb;
+  }
+
+  .btn-primary {
+    background: #ef4444;
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: #dc2626;
+  }
+</style>
+
+<script>
+function showLogoutModal() {
+  document.getElementById('logoutModal').style.display = 'flex';
+}
+
+function hideLogoutModal() {
+  document.getElementById('logoutModal').style.display = 'none';
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    hideLogoutModal();
+  }
+});
+
+// Close modal when clicking overlay
+document.getElementById('logoutModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    hideLogoutModal();
+  }
+});
+</script>
 
 </nav>
 
