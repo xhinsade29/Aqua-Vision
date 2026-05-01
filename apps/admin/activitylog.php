@@ -253,8 +253,14 @@ if (($_GET['action'] ?? '') === 'fetch') {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #1a56db;
-            --primary-dark: #0e3a8a;
+            --c1: #0F2854;
+            --c2: #1C4D8D;
+            --c3: #4988C4;
+            --c4: #BDE8F5;
+            --c4-soft: rgba(189,232,245,0.13);
+            --c4-hover: rgba(189,232,245,0.20);
+            --primary: #4988C4;
+            --primary-dark: #1C4D8D;
             --success: #059669;
             --warning: #d97706;
             --danger: #dc2626;
@@ -518,6 +524,55 @@ if (($_GET['action'] ?? '') === 'fetch') {
         .empty-state-icon {
             font-size: 3rem;
             margin-bottom: 1rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+            .header-actions {
+                width: 100%;
+                flex-direction: column;
+            }
+            .header-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .timeline-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.75rem;
+            }
+            .timeline-header .btn {
+                width: 100%;
+            }
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 0.75rem;
+            }
+            .timeline-item {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            .timeline-icon {
+                width: 32px;
+                height: 32px;
+            }
         }
     </style>
 </head>

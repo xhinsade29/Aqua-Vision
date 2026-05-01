@@ -341,12 +341,18 @@ $totalDevices = count($deviceActivity);
         }
 
         :root {
-            --primary: #1a56db;
-            --primary-dark: #0e3a8a;
+            --c1: #0F2854;
+            --c2: #1C4D8D;
+            --c3: #4988C4;
+            --c4: #BDE8F5;
+            --c4-soft: rgba(189,232,245,0.13);
+            --c4-hover: rgba(189,232,245,0.20);
+            --primary: #4988C4;
+            --primary-dark: #1C4D8D;
             --success: #059669;
             --warning: #d97706;
             --danger: #dc2626;
-            --info: #3b82f6;
+            --info: #4988C4;
             --gray-50: #f9fafb;
             --gray-100: #f3f4f6;
             --gray-200: #e5e7eb;
@@ -591,6 +597,57 @@ $totalDevices = count($deviceActivity);
         .empty-state-icon {
             font-size: 3rem;
             margin-bottom: 1rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+            .header-actions {
+                width: 100%;
+                flex-direction: column;
+            }
+            .header-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .filter-bar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.75rem;
+            }
+            .filter-bar .form-group {
+                width: 100%;
+            }
+            .filter-bar .form-group select,
+            .filter-bar .form-group input {
+                width: 100%;
+            }
+            .filter-bar .btn {
+                width: 100%;
+            }
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 0.75rem;
+            }
+            .card {
+                padding: 1rem;
+            }
         }
     </style>
 </head>

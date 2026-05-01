@@ -384,17 +384,20 @@ $lastTs = !empty($logs) ? $logs[0]['recorded_at'] : null;
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root {
+  --c1:#0F2854;--c2:#1C4D8D;--c3:#4988C4;--c4:#BDE8F5;
+  --c4-soft:rgba(189,232,245,0.13);
+  --c4-hover:rgba(189,232,245,0.20);
   --ink:#0d1117;--ink2:#3d4a5c;--ink3:#8897aa;--ink4:#b8c4d0;
-  --rule:rgba(13,17,23,.07);--rule2:rgba(13,17,23,.12);
+  --rule:rgba(15,40,84,.07);--rule2:rgba(15,40,84,.12);
   --bg:#f5f6f8;--surf:#ffffff;--surf2:#f9fafb;
-  --accent:#1a56db;--acc-bg:#eff4ff;
+  --accent:#4988C4;--acc-bg:rgba(189,232,245,0.13);
   --good:#059669;--good-bg:#d1fae5;
   --warn:#d97706;--warn-bg:#fef3c7;
   --crit:#dc2626;--crit-bg:#fee2e2;
   --up:#059669;--mid:#d97706;--down:#dc2626;
   --r-sm:4px;--r:8px;--r-lg:12px;--r-xl:16px;
-  --sh:0 1px 2px rgba(13,17,23,.04),0 4px 16px rgba(13,17,23,.06);
-  --sh-sm:0 1px 2px rgba(13,17,23,.05);
+  --sh:0 1px 2px rgba(15,40,84,.04),0 4px 16px rgba(15,40,84,.06);
+  --sh-sm:0 1px 2px rgba(15,40,84,.05);
   --sans:'Instrument Sans',sans-serif;--serif:'Instrument Serif',serif;--mono:'JetBrains Mono',monospace;
 }
 html{font-size:14px}
@@ -539,6 +542,53 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
 .sim-stat-card.wide{text-align:left}
 .sim-stat-l{font-size:10px;font-weight:600;color:var(--ink4);text-transform:uppercase;letter-spacing:.06em}
 .sim-stat-v{font-family:var(--mono);font-size:1.5rem;font-weight:500;margin-top:4px}
+
+/* ── Responsive Design ─────────────────────────────────── */
+@media (max-width: 1200px) {
+  .wrap{padding:20px 24px 48px}
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .grid-main{grid-template-columns:1fr}
+  .grid-bottom{grid-template-columns:1fr}
+  #av-map{height:350px}
+}
+
+@media (max-width: 768px) {
+  html{font-size:13px}
+  .wrap{padding:16px 20px 40px}
+  .topbar{flex-direction:column;align-items:flex-start;gap:12px;margin-bottom:24px}
+  .topbar-right{width:100%;justify-content:space-between;flex-wrap:wrap}
+  .river-banner{grid-template-columns:1fr;gap:12px;padding:14px 18px}
+  .banner-stats{width:100%;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid var(--rule)}
+  .bstat{padding:0 12px;border-left:none}
+  .kpi-row{grid-template-columns:1fr;gap:10px}
+  .kpi{padding:14px 16px}
+  .kpi-value{font-size:24px}
+  .card-head{flex-direction:column;align-items:flex-start;gap:8px}
+  .card-head-r{width:100%;justify-content:space-between}
+  #av-map{height:300px}
+  .map-legend{justify-content:center}
+  .dev-panel{max-height:400px}
+  .chart-wrap{height:240px}
+  .log-filter-bar{flex-direction:column;align-items:flex-start}
+  .log-filter-bar .sel{width:100%}
+}
+
+@media (max-width: 480px) {
+  html{font-size:12px}
+  .wrap{padding:12px 16px 32px}
+  .topbar-brand .wordmark{font-size:18px}
+  .banner-title{font-size:14px}
+  .banner-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .bstat{padding:0;text-align:center;border-left:none}
+  .kpi-value{font-size:20px}
+  .btn{height:28px;padding:0 10px;font-size:11px}
+  .card-head{padding:10px 14px}
+  .sensor-row{padding:9px 14px;gap:8px}
+  .sensor-icon{width:28px;height:28px;font-size:12px}
+  .sensor-val{font-size:16px}
+  #av-map{height:250px}
+  .chart-wrap{height:200px}
+}
 </style>
 </head>
 <body>
@@ -555,7 +605,6 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
     <div class="ts-line" id="clock">Connecting…</div>
     <span id="syncInd">⟳</span>
     <a href="../../database/export.php" class="btn btn-outline">↓ Export</a>
-    <button class="btn btn-outline" onclick="syncNow()">⟳ Refresh</button>
     <button class="btn btn-primary" onclick="location.reload()">↺ Reload</button>
   </div>
 </div>
@@ -833,62 +882,6 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
   </div>
 </div>
 
-<!-- Device Metric Charts -->
-<div class="section-head fade-in">
-  <div class="section-label">Device Metrics Trends</div>
-  <span class="tag tag-info">24-Hour History</span>
-</div>
-<div class="metric-charts-grid fade-in" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px">
-  
-  <div class="card metric-chart-card" style="padding:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🌡 Temperature (°C)</div>
-    <div style="height:180px"><canvas id="tempChart"></canvas></div>
-  </div>
-  
-  <div class="card metric-chart-card" style="padding:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🧪 pH Level</div>
-    <div style="height:180px"><canvas id="phChart"></canvas></div>
-  </div>
-  
-  <div class="card metric-chart-card" style="padding:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🌫 Turbidity (NTU)</div>
-    <div style="height:180px"><canvas id="turbChart"></canvas></div>
-  </div>
-  
-  <div class="card metric-chart-card" style="padding:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">💧 Dissolved O₂ (mg/L)</div>
-    <div style="height:180px"><canvas id="doChart"></canvas></div>
-  </div>
-  
-  <div class="card metric-chart-card" style="padding:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🌊 Water Level (m)</div>
-    <div style="height:180px"><canvas id="levelChart"></canvas></div>
-  </div>
-  
-  <div class="card metric-chart-card" style="padding:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🟤 Sediments (mg/L)</div>
-    <div style="height:180px"><canvas id="sedChart"></canvas></div>
-  </div>
-  
-</div>
-
-<!-- Chart -->
-<div class="section-head fade-in">
-  <div class="section-label">24-Hour Trends</div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <select id="chartDeviceId" class="sel" onchange="updateChart()">
-      <option value="">All Devices</option>
-      <?php foreach ($devices as $dev): ?>
-        <option value="<?= $dev['device_id'] ?>"><?= htmlspecialchars($dev['device_name']) ?> (<?= ucfirst($dev['river_section']??'') ?>)</option>
-      <?php endforeach; ?>
-    </select>
-    <span class="tag tag-info">Live</span>
-  </div>
-</div>
-<div class="card fade-in" style="margin-bottom:24px">
-  <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
-</div>
-
 <!-- Alerts + Maintenance -->
 <div class="section-head fade-in">
   <div class="section-label">Events &amp; Maintenance</div>
@@ -1010,7 +1003,8 @@ const CHART_DS = [
 Chart.defaults.font.family = "'JetBrains Mono', monospace";
 Chart.defaults.color = '#8897aa';
 
-const chart = new Chart(document.getElementById('trendChart').getContext('2d'), {
+const trendChartEl = document.getElementById('trendChart');
+const chart = trendChartEl ? new Chart(trendChartEl.getContext('2d'), {
   type: 'line',
   data: {
     labels: hours,
@@ -1034,10 +1028,11 @@ const chart = new Chart(document.getElementById('trendChart').getContext('2d'), 
       y1: {type:'linear',display:true,position:'right',grid:{drawOnChartArea:false},ticks:{font:{size:9},color:'#3b82f6'},title:{display:true,text:'pH',font:{size:9}}}
     }
   }
-});
+}) : null;
 
 function updateChart() {
-  const deviceId = document.getElementById('chartDeviceId').value;
+  if (!chart) return;
+  const deviceId = document.getElementById('chartDeviceId')?.value;
   if (!deviceId) {
     // Use latest sync data instead of stale dbData
     const latestData = chart?.data?.datasets ? 
@@ -1180,7 +1175,7 @@ function showDeviceData(deviceId) {
     ? new Date(data.recorded_at.replace(' ','T')).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})
     : null;
 
-  let html = `<div class="dev-header"><div><div class="dev-name"><span style="width:7px;height:7px;border-radius:50%;background:${st.color};display:inline-block;flex-shrink:0"></span>${_e(info.name)}</div><div class="dev-loc">📍 ${_e(info.location)}${sec?' &mdash; '+sec:''}</div></div><div style="text-align:right;flex-shrink:0"><span class="tag ${SECT_TAG[info.section]||'tag-info'}">${sec}</span>${ts?`<div style="font-family:var(--mono);font-size:10px;color:var(--ink4);margin-top:4px">${ts}</div>`:''}</div></div>`;
+  let html = `<div class="dev-header"><div><div class="dev-name"><span style="width:7px;height:7px;border-radius:50%;background:${st.color};display:inline-block;flex-shrink:0"></span>${_e(info.name)}</div><div class="dev-loc">📍 ${_e(info.location)}</div></div><div style="text-align:right;flex-shrink:0">${ts?`<div style="font-family:var(--mono);font-size:10px;color:var(--ink4);margin-top:4px">${ts}</div>`:''}</div></div>`;
 
   if (!data) {
     html += '<div class="empty">No readings recorded for this device.</div>';
@@ -1288,8 +1283,8 @@ function _applySync(d) {
   if(d.chart_data){
     CHART_DS.forEach((ds,i)=>{ chart.data.datasets[i].data=d.chart_data[ds.key]||Array(24).fill(null); });
     Object.keys(d.device_chart_data||{}).forEach(did=>{ allChartData[did]=d.device_chart_data[did]; });
-    updateChart();
-    updateMetricCharts();
+    // updateChart();
+    // updateMetricCharts();
   }
 
   // Alerts
@@ -1591,7 +1586,7 @@ const _mapMk={};
 
 (function(){
   // Mangima River coordinates
-  const mangimaStart = [8.345958, 124.898607];
+  const mangimaStart = [8.345862, 124.898846];
   const mangimaEnd = [8.413179, 124.909497];
   
   // Calculate center between start and end
@@ -1604,13 +1599,14 @@ const _mapMk={};
     minZoom:12,
     maxZoom:16,
     maxBounds:[[8.32,124.88],[8.42,124.93]],  // Bounds covering Mangima River
-    maxBoundsViscosity:1.0  // Make bounds hard (can't drag outside)
+    maxBoundsViscosity:1.0,  // Make bounds hard (can't drag outside)
+    attributionControl:false
   }).setView([centerLat, centerLng],13);
   
   L.control.zoom({position:'bottomright'}).addTo(avMap);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CartoDB',subdomains:'abcd',maxZoom:19}).addTo(avMap);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'',subdomains:'abcd',maxZoom:19}).addTo(avMap);
   if(!document.getElementById('av-rs')){const s=document.createElement('style');s.id='av-rs';s.textContent='@keyframes av-ripple{0%{transform:scale(.6);opacity:.9}100%{transform:scale(2.4);opacity:0}}';document.head.appendChild(s);}
-  const R=[[8.345958,124.898607],[8.346955,124.899036],[8.347603,124.898081],[8.349471,124.896461],[8.349216,124.895474],[8.349535,124.894755],[8.348909,124.894058],[8.349881,124.893209],[8.352050,124.889584],[8.351096,124.889497],[8.351978,124.888415],[8.352369,124.887056],[8.352210,124.886676],[8.352643,124.886427],[8.353468,124.884863],[8.355492,124.883376],[8.356292,124.881332],[8.358270,124.881140],[8.368532,124.875713],[8.373977,124.876690],[8.381657,124.897203],[8.394810,124.903483],[8.396343,124.907500],[8.399906,124.911121],[8.400757,124.910773],[8.401407,124.910581],[8.401636,124.910868],[8.401774,124.911007],[8.402125,124.911168],[8.402489,124.911218],[8.402853,124.911196],[8.403020,124.911119],[8.403792,124.910506],[8.405310,124.909972],[8.405901,124.909983],[8.406337,124.910087],[8.406533,124.910179],[8.406700,124.910291],[8.406745,124.910385],[8.406713,124.910512],[8.405924,124.911388],[8.405818,124.911576],[8.405829,124.911689],[8.405924,124.911801],[8.406275,124.911984],[8.406715,124.912414],[8.407049,124.912661],[8.409034,124.913466],[8.409793,124.913708],[8.410064,124.913713],[8.410472,124.913676],[8.411629,124.913198],[8.412245,124.912800],[8.412515,124.912462],[8.412632,124.911962],[8.413237,124.909739],[8.413179,124.909497]];
+  const R=[[8.345862,124.898846],[8.345963,124.898948],[8.346406,124.899192],[8.346703,124.899117],[8.346892,124.899034],[8.347059,124.898908],[8.347298,124.898613],[8.347470,124.898275],[8.347521,124.898120],[8.347571,124.898012],[8.347842,124.897806],[8.348131,124.897720],[8.348309,124.897642],[8.349344,124.896652],[8.349455,124.896524],[8.349493,124.896424],[8.349490,124.896304],[8.349323,124.895950],[8.349158,124.895700],[8.349134,124.895617],[8.349158,124.895526],[8.349474,124.895209],[8.349580,124.895051],[8.349654,124.894836],[8.349628,124.894745],[8.349503,124.894608],[8.349270,124.894439],[8.348768,124.894099],[8.348720,124.894008],[8.348755,124.893919],[8.349060,124.893669],[8.349270,124.893589],[8.349447,124.893557],[8.349580,124.893498],[8.349968,124.892860],[8.350522,124.891503],[8.351111,124.890497],[8.351252,124.890381],[8.351403,124.890328],[8.351642,124.890223],[8.351913,124.889885],[8.351955,124.889746],[8.351934,124.889650],[8.351873,124.889607],[8.351695,124.889633],[8.351528,124.889717],[8.351377,124.889735],[8.351087,124.889684],[8.350886,124.889588],[8.350804,124.889486],[8.350782,124.889349],[8.350849,124.889210],[8.351021,124.889036],[8.351637,124.888777],[8.351854,124.888684],[8.352271,124.888290],[8.352600,124.887831],[8.352640,124.887657],[8.352613,124.887462],[8.352510,124.887279],[8.352099,124.886963],[8.352064,124.886877],[8.352083,124.886781],[8.352473,124.886440],[8.352584,124.886296],[8.352916,124.885543],[8.353136,124.885167],[8.353285,124.885033],[8.353701,124.884776],[8.353773,124.884625],[8.353874,124.884556],[8.354383,124.884374],[8.354813,124.884129],[8.355172,124.883864],[8.355400,124.883531],[8.355509,124.882987],[8.355657,124.882434],[8.355915,124.881777],[8.356159,124.881426],[8.356358,124.881208],[8.356591,124.881147],[8.356743,124.881136],[8.357929,124.881246],[8.358054,124.881219],[8.358115,124.881165],[8.358308,124.880828],[8.358428,124.880407],[8.358789,124.879848],[8.359155,124.879513],[8.359648,124.879216],[8.359906,124.879114],[8.360920,124.878746],[8.361081,124.878644],[8.361410,124.878199],[8.361649,124.877958],[8.362345,124.877644],[8.363260,124.877056],[8.363377,124.876933],[8.364088,124.875943],[8.364218,124.875796],[8.364998,124.875568],[8.365354,124.875546],[8.365662,124.875578],[8.365879,124.875659],[8.366065,124.875819],[8.366596,124.876345],[8.366811,124.876384],[8.366951,124.876329],[8.367424,124.876083],[8.368193,124.875922],[8.368384,124.875772],[8.368782,124.874521],[8.368889,124.874441],[8.368936,124.874430],[8.369090,124.874430],[8.369218,124.874484],[8.369329,124.874570],[8.369409,124.874918],[8.369515,124.875052],[8.371224,124.875825],[8.372126,124.875777],[8.372890,124.875975],[8.373134,124.876163],[8.373209,124.876281],[8.373363,124.876763],[8.373402,124.876764],[8.373461,124.877185],[8.373511,124.877297],[8.374527,124.877837],[8.375740,124.878148],[8.376366,124.880304],[8.376122,124.881645],[8.376430,124.881999],[8.376313,124.882311],[8.376557,124.882434],[8.376621,124.884328],[8.376101,124.884848],[8.375608,124.885100],[8.375493,124.885266],[8.375467,124.885465],[8.375772,124.885910],[8.377691,124.887257],[8.377821,124.887415],[8.377847,124.887675],[8.377868,124.888416],[8.377884,124.888571],[8.377959,124.888657],[8.378208,124.888754],[8.378940,124.888743],[8.379652,124.888678],[8.379890,124.888710],[8.380671,124.889204],[8.380941,124.889467],[8.380994,124.889607],[8.380909,124.890990],[8.380676,124.891623],[8.380453,124.892461],[8.381122,124.893243],[8.381477,124.893683],[8.381626,124.894257],[8.381498,124.897446],[8.381565,124.897704],[8.381658,124.897776],[8.381889,124.897886],[8.382976,124.898050],[8.383146,124.898039],[8.383390,124.897951],[8.384181,124.897551],[8.384701,124.897535],[8.384887,124.897580],[8.386185,124.898259],[8.387397,124.898610],[8.387782,124.898793],[8.388002,124.898986],[8.388528,124.899860],[8.388631,124.899938],[8.390032,124.899970],[8.390685,124.900067],[8.390852,124.900188],[8.390961,124.900351],[8.391277,124.901011],[8.391420,124.901223],[8.391773,124.901547],[8.393169,124.902229],[8.394501,124.903087],[8.394623,124.903205],[8.394718,124.903597],[8.394745,124.903892],[8.394649,124.904112],[8.393970,124.904814],[8.393410,124.905694],[8.393344,124.905946],[8.393384,124.906051],[8.393514,124.906134],[8.394283,124.906392],[8.394718,124.906440],[8.395902,124.906349],[8.396249,124.906397],[8.396337,124.906501],[8.396387,124.906652],[8.396361,124.906823],[8.396239,124.907231],[8.396202,124.907730],[8.396257,124.907861],[8.396308,124.907883],[8.396459,124.907934],[8.398162,124.907896],[8.398775,124.907953],[8.399158,124.908068],[8.399354,124.908162],[8.399866,124.908682],[8.399948,124.908840],[8.400033,124.909326],[8.399972,124.909739],[8.399951,124.909905],[8.399444,124.910337],[8.399452,124.910345],[8.399396,124.910667],[8.399699,124.911238],[8.399839,124.911332],[8.399972,124.911321],[8.400129,124.911300],[8.400330,124.911209],[8.400519,124.911069],[8.400808,124.910742],[8.401055,124.910554],[8.401264,124.910514],[8.401378,124.910546],[8.401588,124.910841],[8.401737,124.910986],[8.401774,124.911007],[8.402125,124.911168],[8.402489,124.911218],[8.402853,124.911196],[8.403020,124.911119],[8.403792,124.910506],[8.405310,124.909972],[8.405901,124.909983],[8.406337,124.910087],[8.406533,124.910179],[8.406700,124.910291],[8.406745,124.910385],[8.406713,124.910512],[8.405924,124.911388],[8.405818,124.911576],[8.405829,124.911689],[8.405924,124.911801],[8.406275,124.911984],[8.406715,124.912414],[8.407049,124.912661],[8.409034,124.913466],[8.409793,124.913708],[8.410064,124.913713],[8.410472,124.913676],[8.411629,124.913198],[8.412245,124.912800],[8.412515,124.912462],[8.412632,124.911962],[8.413237,124.909739],[8.413179,124.909497]];
   L.polyline(R,{color:'#0d1117',weight:18,opacity:.12}).addTo(avMap);
   L.polyline(R,{color:'#1a56db',weight:8,opacity:.55}).addTo(avMap);
   L.polyline(R,{color:'#60a5fa',weight:4,opacity:.85}).addTo(avMap);
@@ -1618,20 +1614,93 @@ const _mapMk={};
   let doff=0; setInterval(()=>{doff-=1.5;fl.setStyle({dashOffset:String(doff)});},60);
   [3,7,10,14,18,22].forEach(i=>{if(i>=R.length-1)return;const from=R[i],to=R[i+1],lat=(from[0]+to[0])/2,lng=(from[1]+to[1])/2;const angle=Math.atan2(to[1]-from[1],to[0]-from[0])*180/Math.PI-90;L.marker([lat,lng],{icon:L.divIcon({html:`<div style="transform:rotate(${angle}deg);color:#60a5fa;font-size:9px;opacity:.6">▲</div>`,iconSize:[10,10],iconAnchor:[5,5],className:''}),interactive:false}).addTo(avMap);});
   function pIcon(color,label){return L.divIcon({html:`<div style="position:relative;width:40px;height:40px"><div style="position:absolute;inset:0;border-radius:50%;background:${color};opacity:.12;animation:av-ripple 2s ease-out infinite"></div><div style="position:absolute;inset:8px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.15)"></div><div style="position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:9px;font-weight:600;color:${color};font-family:'Instrument Sans',sans-serif">${label}</div></div>`,iconSize:[40,40],iconAnchor:[20,20],className:''});}
-  L.marker([8.345958,124.898607],{icon:pIcon('#059669','START')}).addTo(avMap);
+  L.marker([8.345862,124.898846],{icon:pIcon('#059669','START')}).addTo(avMap);
   L.marker([8.413179,124.909497],{icon:pIcon('#dc2626','END')}).addTo(avMap);
   L.marker([8.368,124.882],{icon:L.divIcon({html:`<div style="font-family:'Instrument Serif',serif;font-size:12px;font-style:italic;color:#1a56db;opacity:.5;white-space:nowrap;transform:rotate(42deg)">Mangima River</div>`,iconSize:[130,20],iconAnchor:[65,10],className:''}),interactive:false}).addTo(avMap);
   const sC={upstream:'#059669',midstream:'#d97706',downstream:'#dc2626'};
   const sL={upstream:'Upstream',midstream:'Midstream',downstream:'Downstream'};
+  
+  // Function to get device status color (synced with device management)
+  function getDeviceStatusColor(status, condition) {
+    if (condition && condition !== 'normal') {
+      const conditionColors = {
+        'displaced': '#7c3aed',
+        'damaged': '#1f2937',
+        'malfunctioning': '#d97706'
+      };
+      return conditionColors[condition] || '#9ca3af';
+    }
+    const statusColors = {
+      'active': '#059669',
+      'maintenance': '#3b82f6',
+      'inactive': '#dc2626',
+      'offline': '#6b7280'
+    };
+    return statusColors[status] || '#9ca3af';
+  }
+  
+  // Add location markers
   locs.forEach(loc=>{
     const color=sC[loc.section]||'#1a56db';
     const devs=(locationDevices[loc.id]||[]).filter(d=>d.status==='active');
     const dHtml=devs.length>0?`<div style="margin:8px 0;padding-top:8px;border-top:1px solid #f0f0f0"><div style="font-size:10px;font-weight:600;color:#0d1117;margin-bottom:4px;letter-spacing:.04em;text-transform:uppercase">Active Devices</div>${devs.map(d=>{const c='#059669';return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-radius:4px;background:#f9fafb;margin-bottom:2px"><span style="font-size:11px;color:#0d1117;display:flex;align-items:center;gap:5px"><span style="width:5px;height:5px;border-radius:50%;background:${c};display:inline-block"></span>${d.device_name}</span><span style="font-size:10px;color:${c};font-weight:600">Active</span></div>`}).join('')}</div>`:`<div style="margin:8px 0;font-size:11px;color:#9ca3af;padding-top:8px;border-top:1px solid #f0f0f0">No active devices</div>`;
-    const marker=L.circleMarker([loc.lat,loc.lng],{radius:12,fillColor:color,color:'#fff',weight:2.5,fillOpacity:.95}).addTo(avMap);
+    const marker=L.circleMarker([loc.lat,loc.lng],{radius:8,fillColor:color,color:'#fff',weight:2,fillOpacity:.95}).addTo(avMap);
     _mapMk[loc.id]=marker;
     marker.bindPopup(`<div style="font-family:'Instrument Sans',sans-serif;min-width:210px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:8px;height:8px;border-radius:50%;background:${color}"></div><div style="font-size:13px;font-weight:600;color:#0d1117">${sL[loc.section]||loc.section}</div></div><div style="font-size:11px;color:#3d4a5c;margin-bottom:4px">${loc.name}</div>${dHtml}<div style="display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0"><button onclick="event.stopPropagation();window.location.href='devices.php?action=edit_location&loc_id=${loc.id}'" style="flex:1;padding:5px;font-size:11px;border:1px solid #1a56db;background:#eff4ff;color:#1a56db;border-radius:5px;cursor:pointer;font-family:inherit">Edit</button><button onclick="event.stopPropagation();if(confirm('Delete ${loc.name}?'))window.location.href='devices.php?action=delete_location&loc_id=${loc.id}'" style="flex:1;padding:5px;font-size:11px;border:1px solid #dc2626;background:#fee2e2;color:#dc2626;border-radius:5px;cursor:pointer;font-family:inherit">Delete</button></div><div style="font-size:10px;color:#8897aa;margin-top:6px;font-family:'JetBrains Mono',monospace;text-align:center">${loc.lat.toFixed(5)}°N · ${loc.lng.toFixed(5)}°E</div></div>`,{maxWidth:250});
     marker.on('click',()=>{if(loc.device_id) showDeviceData(loc.device_id);});
-    L.tooltip({permanent:true,direction:'bottom',offset:[0,12]}).setContent(`<span style="font-size:9px;font-weight:600;color:#3d4a5c;font-family:'Instrument Sans',sans-serif;letter-spacing:.04em;text-transform:uppercase">${sL[loc.section]||loc.section}</span>`).setLatLng([loc.lat,loc.lng]).addTo(avMap);
+  });
+  
+  // Add individual device markers (synced with device management map)
+  Object.values(locationDevices).flat().forEach(device => {
+    if (!device.latitude || !device.longitude) return;
+    
+    const color = getDeviceStatusColor(device.status, device.device_condition);
+    const marker = L.circleMarker([device.latitude, device.longitude], {
+      radius: 5,
+      fillColor: color,
+      color: '#fff',
+      weight: 1.5,
+      fillOpacity: 0.9
+    }).addTo(avMap);
+    
+    const popupContent = `
+      <div style="font-family:'Instrument Sans',sans-serif;min-width:200px">
+        <div style="font-weight:600;margin-bottom:8px">${device.device_name}</div>
+        <div style="font-size:12px;color:#6b7280;margin-bottom:4px">
+          Status: <span style="color:${color};font-weight:500">${device.status}</span>
+        </div>
+        ${device.device_condition && device.device_condition !== 'normal' ? `
+          <div style="font-size:12px;color:#7c3aed;margin-bottom:4px">
+            ⚠️ Condition: ${device.device_condition}
+          </div>
+        ` : ''}
+        ${device.location_name ? `
+          <div style="font-size:12px;color:#6b7280;margin-bottom:4px">
+            Location: ${device.location_name}
+          </div>
+        ` : ''}
+        ${device.river_section ? `
+          <div style="font-size:12px;color:#6b7280;margin-bottom:8px">
+            ${device.river_section.charAt(0).toUpperCase()+device.river_section.slice(1)} Section
+          </div>
+        ` : ''}
+        <div style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#9ca3af;margin-bottom:12px">
+          ${device.latitude.toFixed(5)}°N, ${device.longitude.toFixed(5)}°E
+        </div>
+        <div style="display:flex;gap:6px">
+          <a href="devices.php?action=edit&id=${device.device_id}" 
+             style="flex:1;text-align:center;padding:4px 8px;background:#f3f4f6;border-radius:4px;text-decoration:none;font-size:11px">
+            Edit
+          </a>
+          <a href="view_device.php?id=${device.device_id}" 
+             style="flex:1;text-align:center;padding:4px 8px;background:#eff4ff;color:#1a56db;border:1px solid #1a56db;border-radius:4px;text-decoration:none;font-size:11px;font-family:inherit">
+            View Data
+          </a>
+        </div>
+      </div>
+    `;
+    
+    marker.bindPopup(popupContent);
   });
   const allPts=[...R,...locs.map(l=>[l.lat,l.lng])];
   const bounds=L.latLngBounds(allPts);
@@ -1863,7 +1932,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   buildLogGroups(<?= json_encode($logs, JSON_NUMERIC_CHECK) ?>);
   renderLogGroups();
   updateWaterConditions(<?= json_encode($sectionConditions, JSON_NUMERIC_CHECK) ?>);
-  initMetricCharts();
+  // initMetricCharts();
   initConditionPieChart();
   updateOverallSensorStatus(); // Initialize sensor status boxes
   startSync(10000);
@@ -1921,14 +1990,6 @@ function updateMapMarkersFromSync(locations) {
       // Update popup content
       const popupContent = generatePopupContent(loc);
       marker.setPopupContent(popupContent);
-      
-      // Update tooltip
-      const sectionLabel = getRiverSectionLabel(loc.river_section);
-      marker.unbindTooltip();
-      L.tooltip({permanent:true,direction:'bottom',offset:[0,12]})
-        .setContent(`<span style="font-size:9px;font-weight:600;color:#3d4a5c;font-family:'Instrument Sans',sans-serif;letter-spacing:.04em;text-transform:uppercase">${sectionLabel}</span>`)
-        .setLatLng([loc.lat, loc.lng])
-        .addTo(window.avMap);
     }
   });
   

@@ -143,10 +143,9 @@ function handleUserSubmission($conn, $data) {
     if ($userId > 0) {
         // Update existing user
         if (!empty($password)) {
-            // Update with new password
-            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+            // Update with new password (plaintext to match login.php)
             $stmt = $conn->prepare("UPDATE users SET username = ?, email = ?, full_name = ?, role = ?, password_hash = ?, is_active = ? WHERE user_id = ?");
-            $stmt->bind_param("sssssii", $username, $email, $fullName, $role, $passwordHash, $isActive, $userId);
+            $stmt->bind_param("sssssii", $username, $email, $fullName, $role, $password, $isActive, $userId);
         } else {
             // Update without password
             $stmt = $conn->prepare("UPDATE users SET username = ?, email = ?, full_name = ?, role = ?, is_active = ? WHERE user_id = ?");
@@ -165,9 +164,9 @@ function handleUserSubmission($conn, $data) {
             throw new Exception('Password is required for new users');
         }
         
-        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+        // Store password as plaintext to match login.php
         $stmt = $conn->prepare("INSERT INTO users (username, email, full_name, role, password_hash, is_active) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssssi", $username, $email, $fullName, $role, $passwordHash, $isActive);
+        $stmt->bind_param("sssssi", $username, $email, $fullName, $role, $password, $isActive);
         
         if ($stmt->execute()) {
             $newUserId = $conn->insert_id;
@@ -455,6 +454,21 @@ $researcherCount = count(array_filter($users, fn($u) => $u['role'] === 'research
         @media (max-width: 1200px) {
             .content-grid { grid-template-columns: 1fr; }
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            body { margin-left: 0; }
+            .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .main-content { padding: 16px 20px; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .card { padding: 16px; }
+            .table-container { overflow-x: auto; }
+            .user-table { min-width: 600px; }
+        }
+        @media (max-width: 480px) {
+            .page-title { font-size: 20px; }
+            .card { padding: 12px; }
+            .main-content { padding: 12px 16px; }
+            .form-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>

@@ -245,10 +245,21 @@ $dataCount = $conn->query("SELECT COUNT(*) as cnt FROM sensor_readings WHERE rec
         .info-box-title { font-size: 14px; font-weight: 600; color: var(--good); }
         .info-box-text { font-size: 13px; color: var(--text2); margin-top: 4px; }
         
+        @media (max-width: 1200px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
         @media (max-width: 768px) {
             body { margin-left: 0; }
             .form-row { grid-template-columns: 1fr; }
             .stats-grid { grid-template-columns: 1fr; }
+            .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .main-content { padding: 16px 20px; }
+            .card { padding: 16px; }
+        }
+        @media (max-width: 480px) {
+            .page-title { font-size: 20px; }
+            .card { padding: 12px; }
+            .main-content { padding: 12px 16px; }
         }
     </style>
 </head>

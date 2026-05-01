@@ -224,9 +224,22 @@ unset($_SESSION['success'], $_SESSION['error']);
         .stat-value { font-size: 20px; font-weight: 700; color: var(--c1); }
         .stat-label { font-size: 12px; color: var(--text3); }
         
+        @media (max-width: 1200px) {
+            .stats-bar { flex-wrap: wrap; }
+        }
         @media (max-width: 768px) {
             body { margin-left: 0; }
             .content-grid { grid-template-columns: 1fr; }
+            .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .main-content { padding: 16px 20px; }
+            .card { padding: 16px; }
+            .stats-bar { flex-direction: column; width: 100%; }
+            .stat-item { width: 100%; }
+        }
+        @media (max-width: 480px) {
+            .page-title { font-size: 20px; }
+            .card { padding: 12px; }
+            .main-content { padding: 12px 16px; }
         }
     </style>
 </head>
