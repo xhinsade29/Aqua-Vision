@@ -609,7 +609,6 @@ include __DIR__ . '/../../assets/navigation.php';
                             </div>
                             
                             <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
-                                <button type="submit" class="btn btn-primary">Save Device</button>
                                 <a href="?action=list" class="btn btn-secondary">Cancel</a>
                             </div>
                         </form>
