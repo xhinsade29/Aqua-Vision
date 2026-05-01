@@ -460,6 +460,26 @@ $totalAlerts = count($activeAlerts);
         const locs = <?= json_encode(array_map(fn($l)=>['id'=>(int)$l['location_id'],'name'=>$l['location_name'],'lat'=>(float)$l['latitude'],'lng'=>(float)$l['longitude'],'section'=>$l['river_section']], $locations)) ?>;
         const locationDevices = <?= json_encode($locationDevices, JSON_NUMERIC_CHECK) ?>;
         
+        // Function to get device status color
+        function getDeviceStatusColor(status, condition) {
+            if (condition && condition !== 'normal') {
+                const conditionColors = {
+                    'displaced': '#7c3aed',
+                    'damaged': '#1f2937',
+                    'malfunctioning': '#d97706'
+                };
+                return conditionColors[condition] || '#9ca3af';
+            }
+            const statusColors = {
+                'active': '#059669',
+                'maintenance': '#3b82f6',
+                'inactive': '#dc2626',
+                'offline': '#6b7280'
+            };
+            return statusColors[status] || '#9ca3af';
+        }
+        
+        // Add location markers
         locs.forEach(loc => {
             const color = sC[loc.section] || '#1a56db';
             const devs = (locationDevices[loc.id] || []).filter(d => d.status === 'active');
@@ -474,6 +494,49 @@ $totalAlerts = count($activeAlerts);
             _mapMk[loc.id] = marker;
             marker.bindPopup(`<div style="font-family:sans-serif;min-width:210px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:8px;height:8px;border-radius:50%;background:${color}"></div><div style="font-size:13px;font-weight:600;color:#0d1117">${sL[loc.section] || loc.section}</div></div><div style="font-size:11px;color:#3d4a5c;margin-bottom:4px">${loc.name}</div>${dHtml}<div style="font-size:10px;color:#8897aa;margin-top:6px;font-family:monospace;text-align:center">${loc.lat.toFixed(5)}°N · ${loc.lng.toFixed(5)}°E</div></div>`, {maxWidth: 250});
             L.tooltip({permanent: true, direction: 'bottom', offset: [0, 12]}).setContent(`<span style="font-size:9px;font-weight:600;color:#3d4a5c;font-family:sans-serif;letter-spacing:.04em;text-transform:uppercase">${sL[loc.section] || loc.section}</span>`).setLatLng([loc.lat, loc.lng]).addTo(map);
+        });
+        
+        // Add individual device markers
+        Object.values(locationDevices).flat().forEach(device => {
+            if (!device.latitude || !device.longitude) return;
+            
+            const color = getDeviceStatusColor(device.status, device.device_condition);
+            const marker = L.circleMarker([device.latitude, device.longitude], {
+                radius: 8,
+                fillColor: color,
+                color: '#fff',
+                weight: 2,
+                fillOpacity: 0.9
+            }).addTo(map);
+            
+            const popupContent = `
+                <div style="font-family:sans-serif;min-width:200px">
+                    <div style="font-weight:600;margin-bottom:8px">${device.device_name}</div>
+                    <div style="font-size:12px;color:#6b7280;margin-bottom:4px">
+                        Status: <span style="color:${color};font-weight:500">${device.status}</span>
+                    </div>
+                    ${device.device_condition && device.device_condition !== 'normal' ? `
+                        <div style="font-size:12px;color:#7c3aed;margin-bottom:4px">
+                            ⚠️ Condition: ${device.device_condition}
+                        </div>
+                    ` : ''}
+                    ${device.location_name ? `
+                        <div style="font-size:12px;color:#6b7280;margin-bottom:4px">
+                            Location: ${device.location_name}
+                        </div>
+                    ` : ''}
+                    ${device.river_section ? `
+                        <div style="font-size:12px;color:#6b7280;margin-bottom:8px">
+                            ${device.river_section.charAt(0).toUpperCase()+device.river_section.slice(1)} Section
+                        </div>
+                    ` : ''}
+                    <div style="font-size:11px;font-family:monospace;color:#9ca3af;margin-bottom:12px">
+                        ${device.latitude.toFixed(5)}°N, ${device.longitude.toFixed(5)}°E
+                    </div>
+                </div>
+            `;
+            
+            marker.bindPopup(popupContent);
         });
         
         // Fit bounds to show river and all locations
