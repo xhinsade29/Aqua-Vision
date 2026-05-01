@@ -880,62 +880,6 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
   </div>
 </div>
 
-<!-- Device Metric Charts -->
-<div class="section-head fade-in">
-  <div class="section-label">Device Metrics Trends</div>
-  <span class="tag tag-info">24-Hour History</span>
-</div>
-<div class="metric-charts-grid fade-in" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px">
-  
-  <div class="card metric-chart-card" style="padding:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🌡 Temperature (°C)</div>
-    <div style="height:180px"><canvas id="tempChart"></canvas></div>
-  </div>
-  
-  <div class="card metric-chart-card" style="padding:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🧪 pH Level</div>
-    <div style="height:180px"><canvas id="phChart"></canvas></div>
-  </div>
-  
-  <div class="card metric-chart-card" style="padding:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🌫 Turbidity (NTU)</div>
-    <div style="height:180px"><canvas id="turbChart"></canvas></div>
-  </div>
-  
-  <div class="card metric-chart-card" style="padding:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">💧 Dissolved O₂ (mg/L)</div>
-    <div style="height:180px"><canvas id="doChart"></canvas></div>
-  </div>
-  
-  <div class="card metric-chart-card" style="padding:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🌊 Water Level (m)</div>
-    <div style="height:180px"><canvas id="levelChart"></canvas></div>
-  </div>
-  
-  <div class="card metric-chart-card" style="padding:12px">
-    <div style="font-size:11px;font-weight:600;color:var(--ink3);margin-bottom:8px;text-align:center">🟤 Sediments (mg/L)</div>
-    <div style="height:180px"><canvas id="sedChart"></canvas></div>
-  </div>
-  
-</div>
-
-<!-- Chart -->
-<div class="section-head fade-in">
-  <div class="section-label">24-Hour Trends</div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <select id="chartDeviceId" class="sel" onchange="updateChart()">
-      <option value="">All Devices</option>
-      <?php foreach ($devices as $dev): ?>
-        <option value="<?= $dev['device_id'] ?>"><?= htmlspecialchars($dev['device_name']) ?> (<?= ucfirst($dev['river_section']??'') ?>)</option>
-      <?php endforeach; ?>
-    </select>
-    <span class="tag tag-info">Live</span>
-  </div>
-</div>
-<div class="card fade-in" style="margin-bottom:24px">
-  <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
-</div>
-
 <!-- Alerts + Maintenance -->
 <div class="section-head fade-in">
   <div class="section-label">Events &amp; Maintenance</div>
@@ -1057,7 +1001,8 @@ const CHART_DS = [
 Chart.defaults.font.family = "'JetBrains Mono', monospace";
 Chart.defaults.color = '#8897aa';
 
-const chart = new Chart(document.getElementById('trendChart').getContext('2d'), {
+const trendChartEl = document.getElementById('trendChart');
+const chart = trendChartEl ? new Chart(trendChartEl.getContext('2d'), {
   type: 'line',
   data: {
     labels: hours,
@@ -1081,10 +1026,11 @@ const chart = new Chart(document.getElementById('trendChart').getContext('2d'), 
       y1: {type:'linear',display:true,position:'right',grid:{drawOnChartArea:false},ticks:{font:{size:9},color:'#3b82f6'},title:{display:true,text:'pH',font:{size:9}}}
     }
   }
-});
+}) : null;
 
 function updateChart() {
-  const deviceId = document.getElementById('chartDeviceId').value;
+  if (!chart) return;
+  const deviceId = document.getElementById('chartDeviceId')?.value;
   if (!deviceId) {
     // Use latest sync data instead of stale dbData
     const latestData = chart?.data?.datasets ? 
@@ -1227,7 +1173,7 @@ function showDeviceData(deviceId) {
     ? new Date(data.recorded_at.replace(' ','T')).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})
     : null;
 
-  let html = `<div class="dev-header"><div><div class="dev-name"><span style="width:7px;height:7px;border-radius:50%;background:${st.color};display:inline-block;flex-shrink:0"></span>${_e(info.name)}</div><div class="dev-loc">📍 ${_e(info.location)}${sec?' &mdash; '+sec:''}</div></div><div style="text-align:right;flex-shrink:0"><span class="tag ${SECT_TAG[info.section]||'tag-info'}">${sec}</span>${ts?`<div style="font-family:var(--mono);font-size:10px;color:var(--ink4);margin-top:4px">${ts}</div>`:''}</div></div>`;
+  let html = `<div class="dev-header"><div><div class="dev-name"><span style="width:7px;height:7px;border-radius:50%;background:${st.color};display:inline-block;flex-shrink:0"></span>${_e(info.name)}</div><div class="dev-loc">📍 ${_e(info.location)}</div></div><div style="text-align:right;flex-shrink:0">${ts?`<div style="font-family:var(--mono);font-size:10px;color:var(--ink4);margin-top:4px">${ts}</div>`:''}</div></div>`;
 
   if (!data) {
     html += '<div class="empty">No readings recorded for this device.</div>';
@@ -1335,8 +1281,8 @@ function _applySync(d) {
   if(d.chart_data){
     CHART_DS.forEach((ds,i)=>{ chart.data.datasets[i].data=d.chart_data[ds.key]||Array(24).fill(null); });
     Object.keys(d.device_chart_data||{}).forEach(did=>{ allChartData[did]=d.device_chart_data[did]; });
-    updateChart();
-    updateMetricCharts();
+    // updateChart();
+    // updateMetricCharts();
   }
 
   // Alerts
@@ -1699,7 +1645,6 @@ const _mapMk={};
     _mapMk[loc.id]=marker;
     marker.bindPopup(`<div style="font-family:'Instrument Sans',sans-serif;min-width:210px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:8px;height:8px;border-radius:50%;background:${color}"></div><div style="font-size:13px;font-weight:600;color:#0d1117">${sL[loc.section]||loc.section}</div></div><div style="font-size:11px;color:#3d4a5c;margin-bottom:4px">${loc.name}</div>${dHtml}<div style="display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0"><button onclick="event.stopPropagation();window.location.href='devices.php?action=edit_location&loc_id=${loc.id}'" style="flex:1;padding:5px;font-size:11px;border:1px solid #1a56db;background:#eff4ff;color:#1a56db;border-radius:5px;cursor:pointer;font-family:inherit">Edit</button><button onclick="event.stopPropagation();if(confirm('Delete ${loc.name}?'))window.location.href='devices.php?action=delete_location&loc_id=${loc.id}'" style="flex:1;padding:5px;font-size:11px;border:1px solid #dc2626;background:#fee2e2;color:#dc2626;border-radius:5px;cursor:pointer;font-family:inherit">Delete</button></div><div style="font-size:10px;color:#8897aa;margin-top:6px;font-family:'JetBrains Mono',monospace;text-align:center">${loc.lat.toFixed(5)}°N · ${loc.lng.toFixed(5)}°E</div></div>`,{maxWidth:250});
     marker.on('click',()=>{if(loc.device_id) showDeviceData(loc.device_id);});
-    L.tooltip({permanent:true,direction:'bottom',offset:[0,12]}).setContent(`<span style="font-size:9px;font-weight:600;color:#3d4a5c;font-family:'Instrument Sans',sans-serif;letter-spacing:.04em;text-transform:uppercase">${sL[loc.section]||loc.section}</span>`).setLatLng([loc.lat,loc.lng]).addTo(avMap);
   });
   
   // Add individual device markers (synced with device management map)
@@ -1744,10 +1689,10 @@ const _mapMk={};
              style="flex:1;text-align:center;padding:4px 8px;background:#f3f4f6;border-radius:4px;text-decoration:none;font-size:11px">
             Edit
           </a>
-          <button onclick="showDeviceData(${device.device_id})" 
-             style="flex:1;padding:4px 8px;background:#eff4ff;color:#1a56db;border:1px solid #1a56db;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit">
+          <a href="view_device.php?id=${device.device_id}" 
+             style="flex:1;text-align:center;padding:4px 8px;background:#eff4ff;color:#1a56db;border:1px solid #1a56db;border-radius:4px;text-decoration:none;font-size:11px;font-family:inherit">
             View Data
-          </button>
+          </a>
         </div>
       </div>
     `;
@@ -1984,7 +1929,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   buildLogGroups(<?= json_encode($logs, JSON_NUMERIC_CHECK) ?>);
   renderLogGroups();
   updateWaterConditions(<?= json_encode($sectionConditions, JSON_NUMERIC_CHECK) ?>);
-  initMetricCharts();
+  // initMetricCharts();
   initConditionPieChart();
   updateOverallSensorStatus(); // Initialize sensor status boxes
   startSync(10000);
@@ -2042,14 +1987,6 @@ function updateMapMarkersFromSync(locations) {
       // Update popup content
       const popupContent = generatePopupContent(loc);
       marker.setPopupContent(popupContent);
-      
-      // Update tooltip
-      const sectionLabel = getRiverSectionLabel(loc.river_section);
-      marker.unbindTooltip();
-      L.tooltip({permanent:true,direction:'bottom',offset:[0,12]})
-        .setContent(`<span style="font-size:9px;font-weight:600;color:#3d4a5c;font-family:'Instrument Sans',sans-serif;letter-spacing:.04em;text-transform:uppercase">${sectionLabel}</span>`)
-        .setLatLng([loc.lat, loc.lng])
-        .addTo(window.avMap);
     }
   });
   

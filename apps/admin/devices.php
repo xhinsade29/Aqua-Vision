@@ -2121,6 +2121,7 @@ include __DIR__ . '/../../assets/navigation.php';
                                         <td><?= $device['river_section'] ? ucfirst($device['river_section']) : '—' ?></td>
                                         <td><?= $device['last_active'] ? date('M d, H:i', strtotime($device['last_active'])) : 'Never' ?></td>
                                         <td style="display: flex; gap: 0.5rem;">
+                                            <a href="view_device.php?id=<?= $device['device_id'] ?>" class="btn btn-primary" style="padding: 0.25rem 0.75rem;">View</a>
                                             <a href="?action=edit&id=<?= $device['device_id'] ?>" class="btn btn-secondary" style="padding: 0.25rem 0.75rem;">Edit</a>
                                             <a href="?action=delete&id=<?= $device['device_id'] ?>" class="btn btn-danger" style="padding: 0.25rem 0.75rem;">Delete</a>
                                         </td>
@@ -2291,6 +2292,10 @@ include __DIR__ . '/../../assets/navigation.php';
                                     ${device.latitude.toFixed(5)}°N, ${device.longitude.toFixed(5)}°E
                                 </div>
                                 <div style="display: flex; gap: 6px;">
+                                    <a href="view_device.php?id=${device.device_id}" 
+                                       style="flex: 1; text-align: center; padding: 4px 8px; background: #eff4ff; color: #1a56db; border: 1px solid #1a56db; border-radius: 4px; text-decoration: none; font-size: 11px;">
+                                        View
+                                    </a>
                                     <a href="?action=edit&id=${device.device_id}" 
                                        style="flex: 1; text-align: center; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; text-decoration: none; font-size: 11px;">
                                         Edit
@@ -2720,6 +2725,10 @@ include __DIR__ . '/../../assets/navigation.php';
                                     ${device.lat.toFixed(5)}°N, ${device.lng.toFixed(5)}°E
                                 </div>
                                 <div style="display: flex; gap: 6px;">
+                                    <a href="view_device.php?id=${device.device_id}" 
+                                       style="flex: 1; text-align: center; padding: 4px 8px; background: #eff4ff; color: #1a56db; border: 1px solid #1a56db; border-radius: 4px; text-decoration: none; font-size: 11px;">
+                                        View
+                                    </a>
                                     <a href="?action=edit&id=${device.device_id}" 
                                        style="flex: 1; text-align: center; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; text-decoration: none; font-size: 11px;">
                                         Edit
