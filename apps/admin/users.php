@@ -143,10 +143,9 @@ function handleUserSubmission($conn, $data) {
     if ($userId > 0) {
         // Update existing user
         if (!empty($password)) {
-            // Update with new password
-            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+            // Update with new password (plaintext to match login.php)
             $stmt = $conn->prepare("UPDATE users SET username = ?, email = ?, full_name = ?, role = ?, password_hash = ?, is_active = ? WHERE user_id = ?");
-            $stmt->bind_param("sssssii", $username, $email, $fullName, $role, $passwordHash, $isActive, $userId);
+            $stmt->bind_param("sssssii", $username, $email, $fullName, $role, $password, $isActive, $userId);
         } else {
             // Update without password
             $stmt = $conn->prepare("UPDATE users SET username = ?, email = ?, full_name = ?, role = ?, is_active = ? WHERE user_id = ?");
@@ -165,9 +164,9 @@ function handleUserSubmission($conn, $data) {
             throw new Exception('Password is required for new users');
         }
         
-        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+        // Store password as plaintext to match login.php
         $stmt = $conn->prepare("INSERT INTO users (username, email, full_name, role, password_hash, is_active) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssssi", $username, $email, $fullName, $role, $passwordHash, $isActive);
+        $stmt->bind_param("sssssi", $username, $email, $fullName, $role, $password, $isActive);
         
         if ($stmt->execute()) {
             $newUserId = $conn->insert_id;
