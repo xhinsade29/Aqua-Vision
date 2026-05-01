@@ -620,7 +620,9 @@ include __DIR__ . '/../../assets/navigation.php';
                             const defaultLat = 8.369297;
                             const defaultLng = 124.876785;
                             
-                            addDeviceMap = L.map('add-device-location-map').setView([defaultLat, defaultLng], 13);
+                            addDeviceMap = L.map('add-device-location-map', {
+                                attributionControl: false
+                            }).setView([defaultLat, defaultLng], 13);
                             
                             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                                 attribution: '',
@@ -1125,7 +1127,8 @@ include __DIR__ . '/../../assets/navigation.php';
                     minZoom: 12,
                     maxZoom: 16,
                     maxBounds: [[8.32, 124.88], [8.42, 124.93]],
-                    maxBoundsViscosity: 1.0
+                    maxBoundsViscosity: 1.0,
+                    attributionControl: false
                 }).setView([lat, lng], 13);
                 
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -1731,7 +1734,9 @@ include __DIR__ . '/../../assets/navigation.php';
                         const locLat = <?= $location['latitude'] ?>;
                         const locLng = <?= $location['longitude'] ?>;
                         
-                        const locMap = L.map('edit-location-map').setView([locLat, locLng], 14);
+                        const locMap = L.map('edit-location-map', {
+                            attributionControl: false
+                        }).setView([locLat, locLng], 14);
                         
                         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                             attribution: '',
@@ -2214,7 +2219,9 @@ include __DIR__ . '/../../assets/navigation.php';
                     const avgLat = devicesWithLocations.reduce((sum, d) => sum + d.latitude, 0) / devicesWithLocations.length;
                     const avgLng = devicesWithLocations.reduce((sum, d) => sum + d.longitude, 0) / devicesWithLocations.length;
                     
-                    deviceOverviewMap = L.map('devices-overview-map').setView([avgLat, avgLng], 12);
+                    deviceOverviewMap = L.map('devices-overview-map', {
+                        attributionControl: false
+                    }).setView([avgLat, avgLng], 12);
                     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                         attribution: '',
                         subdomains: 'abcd'

@@ -1597,7 +1597,8 @@ const _mapMk={};
     minZoom:12,
     maxZoom:16,
     maxBounds:[[8.32,124.88],[8.42,124.93]],  // Bounds covering Mangima River
-    maxBoundsViscosity:1.0  // Make bounds hard (can't drag outside)
+    maxBoundsViscosity:1.0,  // Make bounds hard (can't drag outside)
+    attributionControl:false
   }).setView([centerLat, centerLng],13);
   
   L.control.zoom({position:'bottomright'}).addTo(avMap);

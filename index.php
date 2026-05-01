@@ -402,7 +402,8 @@ $totalAlerts = count($activeAlerts);
             minZoom: 12,
             maxZoom: 16,
             maxBounds: [[8.32, 124.88], [8.42, 124.93]],
-            maxBoundsViscosity: 1.0
+            maxBoundsViscosity: 1.0,
+            attributionControl: false
         }).setView([centerLat, centerLng], 13);
         
         L.control.zoom({position: 'bottomright'}).addTo(map);

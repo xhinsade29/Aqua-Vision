@@ -720,7 +720,9 @@ $currentPage = 'devices';
             const lat = <?= $device['latitude'] ?>;
             const lng = <?= $device['longitude'] ?>;
             
-            const map = L.map('deviceMap').setView([lat, lng], 14);
+            const map = L.map('deviceMap', {
+                attributionControl: false
+            }).setView([lat, lng], 14);
             
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                 attribution: '',
