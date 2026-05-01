@@ -384,17 +384,20 @@ $lastTs = !empty($logs) ? $logs[0]['recorded_at'] : null;
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root {
+  --c1:#0F2854;--c2:#1C4D8D;--c3:#4988C4;--c4:#BDE8F5;
+  --c4-soft:rgba(189,232,245,0.13);
+  --c4-hover:rgba(189,232,245,0.20);
   --ink:#0d1117;--ink2:#3d4a5c;--ink3:#8897aa;--ink4:#b8c4d0;
-  --rule:rgba(13,17,23,.07);--rule2:rgba(13,17,23,.12);
+  --rule:rgba(15,40,84,.07);--rule2:rgba(15,40,84,.12);
   --bg:#f5f6f8;--surf:#ffffff;--surf2:#f9fafb;
-  --accent:#1a56db;--acc-bg:#eff4ff;
+  --accent:#4988C4;--acc-bg:rgba(189,232,245,0.13);
   --good:#059669;--good-bg:#d1fae5;
   --warn:#d97706;--warn-bg:#fef3c7;
   --crit:#dc2626;--crit-bg:#fee2e2;
   --up:#059669;--mid:#d97706;--down:#dc2626;
   --r-sm:4px;--r:8px;--r-lg:12px;--r-xl:16px;
-  --sh:0 1px 2px rgba(13,17,23,.04),0 4px 16px rgba(13,17,23,.06);
-  --sh-sm:0 1px 2px rgba(13,17,23,.05);
+  --sh:0 1px 2px rgba(15,40,84,.04),0 4px 16px rgba(15,40,84,.06);
+  --sh-sm:0 1px 2px rgba(15,40,84,.05);
   --sans:'Instrument Sans',sans-serif;--serif:'Instrument Serif',serif;--mono:'JetBrains Mono',monospace;
 }
 html{font-size:14px}

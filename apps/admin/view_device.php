@@ -133,8 +133,14 @@ $currentPage = 'devices';
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         :root {
-            --primary: #1a56db;
-            --primary-dark: #1e429f;
+            --c1: #0F2854;
+            --c2: #1C4D8D;
+            --c3: #4988C4;
+            --c4: #BDE8F5;
+            --c4-soft: rgba(189,232,245,0.13);
+            --c4-hover: rgba(189,232,245,0.20);
+            --primary: #4988C4;
+            --primary-dark: #1C4D8D;
             --success: #059669;
             --warning: #d97706;
             --danger: #dc2626;

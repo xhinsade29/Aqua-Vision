@@ -189,8 +189,14 @@ include __DIR__ . '/../../assets/navigation.php';
         }
         
         :root {
-            --primary: #1a56db;
-            --primary-dark: #0e3a8a;
+            --c1: #0F2854;
+            --c2: #1C4D8D;
+            --c3: #4988C4;
+            --c4: #BDE8F5;
+            --c4-soft: rgba(189,232,245,0.13);
+            --c4-hover: rgba(189,232,245,0.20);
+            --primary: #4988C4;
+            --primary-dark: #1C4D8D;
             --success: #059669;
             --warning: #d97706;
             --danger: #dc2626;
@@ -1009,6 +1015,69 @@ include __DIR__ . '/../../assets/navigation.php';
                                         <?= $device['updated_at'] ? date('M d, H:i', strtotime($device['updated_at'])) : 'Never' ?>
                                     </div>
                                 </div>
+                                
+                                <!-- Maintenance History -->
+                                <?php
+                                $maintenanceHistory = [];
+                                try {
+                                    $maintStmt = $conn->prepare("SELECT ml.*, u.name as operator_name 
+                                                            FROM maintenance_logs ml
+                                                            LEFT JOIN users u ON u.user_id = ml.performed_by
+                                                            WHERE ml.device_id = ?
+                                                            ORDER BY ml.performed_at DESC
+                                                            LIMIT 5");
+                                    if ($maintStmt) {
+                                        $maintStmt->bind_param("i", $device['device_id']);
+                                        $maintStmt->execute();
+                                        $result = $maintStmt->get_result();
+                                        if ($result) {
+                                            $maintenanceHistory = $result->fetch_all(MYSQLI_ASSOC);
+                                        }
+                                        $maintStmt->close();
+                                    }
+                                } catch (Exception $e) {
+                                    // Table doesn't exist or error
+                                }
+                                ?>
+                                <?php if (!empty($maintenanceHistory)): ?>
+                                <div style="border-top: 1px solid var(--gray-200); padding-top: 0.75rem; margin-top: 0.75rem;">
+                                    <div style="font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--gray-600);">🔧 Maintenance History</div>
+                                    <div style="max-height: 150px; overflow-y: auto;">
+                                        <?php foreach ($maintenanceHistory as $maint): ?>
+                                            <div style="padding: 0.5rem; background: #fffbeb; border-radius: 6px; margin-bottom: 0.5rem; border-left: 3px solid #f59e0b;">
+                                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                                    <span style="font-weight: 500; color: #92400e; font-size: 0.7rem;">
+                                                        <?= ucfirst(str_replace('_', ' ', $maint['maintenance_type'])) ?>
+                                                    </span>
+                                                    <span style="color: #b45309; font-size: 0.65rem;">
+                                                        <?= date('M d, H:i', strtotime($maint['performed_at'])) ?>
+                                                    </span>
+                                                </div>
+                                                <?php if ($maint['operator_name']): ?>
+                                                    <div style="font-size: 0.65rem; color: #b45309; margin-bottom: 0.25rem;">
+                                                        By: <?= htmlspecialchars($maint['operator_name']) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <?php if ($maint['damage_level'] !== 'none'): ?>
+                                                    <div style="font-size: 0.65rem; color: #dc2626; font-weight: 500;">
+                                                        Damage: <?= ucfirst($maint['damage_level']) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <?php if ($maint['malfunction_type']): ?>
+                                                    <div style="font-size: 0.65rem; color: #d97706;">
+                                                        <?= htmlspecialchars($maint['malfunction_type']) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <?php if ($maint['notes']): ?>
+                                                    <div style="font-size: 0.65rem; color: #78350f; margin-top: 0.25rem; font-style: italic;">
+                                                        <?= htmlspecialchars(substr($maint['notes'], 0, 100)) ?><?= strlen($maint['notes']) > 100 ? '...' : '' ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
                                 
                                 <!-- Activity History -->
                                 <div style="border-top: 1px solid var(--gray-200); padding-top: 0.75rem; margin-top: 0.75rem;">
@@ -1850,6 +1919,43 @@ include __DIR__ . '/../../assets/navigation.php';
                 </div>
             </div>
             
+            <!-- Maintenance Alert Section -->
+            <?php
+            $maintenanceDevices = array_filter($devices, fn($d) => ($d['status'] ?? '') === 'maintenance');
+            if (!empty($maintenanceDevices)):
+            ?>
+            <div class="card" style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 2px solid #f59e0b; margin-bottom: 1.5rem;">
+                <div class="card-header" style="padding: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 1.5rem;">🔧</span>
+                        <div>
+                            <h4 style="font-size: 0.875rem; color: #92400e; margin: 0;">Devices Under Maintenance</h4>
+                            <p style="font-size: 0.75rem; color: #b45309; margin: 0.25rem 0 0;"><?= count($maintenanceDevices) ?> device(s) currently being serviced by operators</p>
+                        </div>
+                    </div>
+                </div>
+                <div style="padding: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">
+                        <?php foreach ($maintenanceDevices as $device): ?>
+                            <div style="background: white; padding: 0.75rem; border-radius: 8px; border: 1px solid #fcd34d;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; animation: pulse 2s infinite;"></span>
+                                    <span style="font-weight: 600; color: #92400e; font-size: 0.875rem;"><?= htmlspecialchars($device['device_name']) ?></span>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #b45309; margin-bottom: 0.25rem;">
+                                    Location: <?= htmlspecialchars($device['location_name'] ?? 'Unassigned') ?>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #b45309;">
+                                    Section: <?= ucfirst($device['river_section'] ?? 'N/A') ?>
+                                </div>
+                                <a href="?action=edit&id=<?= $device['device_id'] ?>" style="display: inline-block; margin-top: 0.5rem; padding: 0.25rem 0.75rem; background: #f59e0b; color: white; border-radius: 4px; font-size: 0.75rem; text-decoration: none;">View Details</a>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+            
             <!-- Device Management with Map and Details -->
             <div style="display: grid; grid-template-columns: 1fr 400px; gap: 1.5rem;">
                 <!-- Device Map Overview -->
@@ -2060,6 +2166,7 @@ include __DIR__ . '/../../assets/navigation.php';
                             <select id="filterStatus" style="padding: 0.5rem; border: 1px solid var(--gray-200); border-radius: 6px; font-size: 0.875rem;" onchange="filterDevices()">
                                 <option value="">All Statuses</option>
                                 <option value="active">Active</option>
+                                <option value="maintenance">Maintenance</option>
                                 <option value="inactive">Inactive</option>
                                 <option value="offline">Offline</option>
                             </select>
@@ -3099,7 +3206,6 @@ function getAllDevices($conn) {
     $sql = "SELECT d.*, l.location_name, l.river_section, l.latitude, l.longitude 
             FROM devices d 
             LEFT JOIN locations l ON l.location_id = d.location_id 
-            WHERE d.status NOT IN ('maintenance', 'unassigned')
             ORDER BY d.device_name";
     
     $result = $conn->query($sql);

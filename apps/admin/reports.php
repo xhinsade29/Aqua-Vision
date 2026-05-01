@@ -341,12 +341,18 @@ $totalDevices = count($deviceActivity);
         }
 
         :root {
-            --primary: #1a56db;
-            --primary-dark: #0e3a8a;
+            --c1: #0F2854;
+            --c2: #1C4D8D;
+            --c3: #4988C4;
+            --c4: #BDE8F5;
+            --c4-soft: rgba(189,232,245,0.13);
+            --c4-hover: rgba(189,232,245,0.20);
+            --primary: #4988C4;
+            --primary-dark: #1C4D8D;
             --success: #059669;
             --warning: #d97706;
             --danger: #dc2626;
-            --info: #3b82f6;
+            --info: #4988C4;
             --gray-50: #f9fafb;
             --gray-100: #f3f4f6;
             --gray-200: #e5e7eb;

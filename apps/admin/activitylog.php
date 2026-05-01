@@ -253,8 +253,14 @@ if (($_GET['action'] ?? '') === 'fetch') {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #1a56db;
-            --primary-dark: #0e3a8a;
+            --c1: #0F2854;
+            --c2: #1C4D8D;
+            --c3: #4988C4;
+            --c4: #BDE8F5;
+            --c4-soft: rgba(189,232,245,0.13);
+            --c4-hover: rgba(189,232,245,0.20);
+            --primary: #4988C4;
+            --primary-dark: #1C4D8D;
             --success: #059669;
             --warning: #d97706;
             --danger: #dc2626;
