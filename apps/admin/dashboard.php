@@ -1695,7 +1695,7 @@ const _mapMk={};
     const color=sC[loc.section]||'#1a56db';
     const devs=(locationDevices[loc.id]||[]).filter(d=>d.status==='active');
     const dHtml=devs.length>0?`<div style="margin:8px 0;padding-top:8px;border-top:1px solid #f0f0f0"><div style="font-size:10px;font-weight:600;color:#0d1117;margin-bottom:4px;letter-spacing:.04em;text-transform:uppercase">Active Devices</div>${devs.map(d=>{const c='#059669';return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-radius:4px;background:#f9fafb;margin-bottom:2px"><span style="font-size:11px;color:#0d1117;display:flex;align-items:center;gap:5px"><span style="width:5px;height:5px;border-radius:50%;background:${c};display:inline-block"></span>${d.device_name}</span><span style="font-size:10px;color:${c};font-weight:600">Active</span></div>`}).join('')}</div>`:`<div style="margin:8px 0;font-size:11px;color:#9ca3af;padding-top:8px;border-top:1px solid #f0f0f0">No active devices</div>`;
-    const marker=L.circleMarker([loc.lat,loc.lng],{radius:12,fillColor:color,color:'#fff',weight:2.5,fillOpacity:.95}).addTo(avMap);
+    const marker=L.circleMarker([loc.lat,loc.lng],{radius:8,fillColor:color,color:'#fff',weight:2,fillOpacity:.95}).addTo(avMap);
     _mapMk[loc.id]=marker;
     marker.bindPopup(`<div style="font-family:'Instrument Sans',sans-serif;min-width:210px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:8px;height:8px;border-radius:50%;background:${color}"></div><div style="font-size:13px;font-weight:600;color:#0d1117">${sL[loc.section]||loc.section}</div></div><div style="font-size:11px;color:#3d4a5c;margin-bottom:4px">${loc.name}</div>${dHtml}<div style="display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0"><button onclick="event.stopPropagation();window.location.href='devices.php?action=edit_location&loc_id=${loc.id}'" style="flex:1;padding:5px;font-size:11px;border:1px solid #1a56db;background:#eff4ff;color:#1a56db;border-radius:5px;cursor:pointer;font-family:inherit">Edit</button><button onclick="event.stopPropagation();if(confirm('Delete ${loc.name}?'))window.location.href='devices.php?action=delete_location&loc_id=${loc.id}'" style="flex:1;padding:5px;font-size:11px;border:1px solid #dc2626;background:#fee2e2;color:#dc2626;border-radius:5px;cursor:pointer;font-family:inherit">Delete</button></div><div style="font-size:10px;color:#8897aa;margin-top:6px;font-family:'JetBrains Mono',monospace;text-align:center">${loc.lat.toFixed(5)}°N · ${loc.lng.toFixed(5)}°E</div></div>`,{maxWidth:250});
     marker.on('click',()=>{if(loc.device_id) showDeviceData(loc.device_id);});
@@ -1708,10 +1708,10 @@ const _mapMk={};
     
     const color = getDeviceStatusColor(device.status, device.device_condition);
     const marker = L.circleMarker([device.latitude, device.longitude], {
-      radius: 8,
+      radius: 5,
       fillColor: color,
       color: '#fff',
-      weight: 2,
+      weight: 1.5,
       fillOpacity: 0.9
     }).addTo(avMap);
     
