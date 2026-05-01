@@ -539,6 +539,53 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
 .sim-stat-card.wide{text-align:left}
 .sim-stat-l{font-size:10px;font-weight:600;color:var(--ink4);text-transform:uppercase;letter-spacing:.06em}
 .sim-stat-v{font-family:var(--mono);font-size:1.5rem;font-weight:500;margin-top:4px}
+
+/* ── Responsive Design ─────────────────────────────────── */
+@media (max-width: 1200px) {
+  .wrap{padding:20px 24px 48px}
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .grid-main{grid-template-columns:1fr}
+  .grid-bottom{grid-template-columns:1fr}
+  #av-map{height:350px}
+}
+
+@media (max-width: 768px) {
+  html{font-size:13px}
+  .wrap{padding:16px 20px 40px}
+  .topbar{flex-direction:column;align-items:flex-start;gap:12px;margin-bottom:24px}
+  .topbar-right{width:100%;justify-content:space-between;flex-wrap:wrap}
+  .river-banner{grid-template-columns:1fr;gap:12px;padding:14px 18px}
+  .banner-stats{width:100%;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid var(--rule)}
+  .bstat{padding:0 12px;border-left:none}
+  .kpi-row{grid-template-columns:1fr;gap:10px}
+  .kpi{padding:14px 16px}
+  .kpi-value{font-size:24px}
+  .card-head{flex-direction:column;align-items:flex-start;gap:8px}
+  .card-head-r{width:100%;justify-content:space-between}
+  #av-map{height:300px}
+  .map-legend{justify-content:center}
+  .dev-panel{max-height:400px}
+  .chart-wrap{height:240px}
+  .log-filter-bar{flex-direction:column;align-items:flex-start}
+  .log-filter-bar .sel{width:100%}
+}
+
+@media (max-width: 480px) {
+  html{font-size:12px}
+  .wrap{padding:12px 16px 32px}
+  .topbar-brand .wordmark{font-size:18px}
+  .banner-title{font-size:14px}
+  .banner-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .bstat{padding:0;text-align:center;border-left:none}
+  .kpi-value{font-size:20px}
+  .btn{height:28px;padding:0 10px;font-size:11px}
+  .card-head{padding:10px 14px}
+  .sensor-row{padding:9px 14px;gap:8px}
+  .sensor-icon{width:28px;height:28px;font-size:12px}
+  .sensor-val{font-size:16px}
+  #av-map{height:250px}
+  .chart-wrap{height:200px}
+}
 </style>
 </head>
 <body>

@@ -252,6 +252,18 @@ $unit = $trendData[0]['unit'] ?? '';
         @media (max-width: 768px) {
             body { margin-left: 0; }
             .stats-grid { grid-template-columns: 1fr; }
+            .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .main-content { padding: 16px 20px; }
+            .card { padding: 16px; }
+            .filter-bar { flex-direction: column; align-items: flex-start; gap: 8px; }
+            .filter-bar .sel { width: 100%; }
+            .filter-bar .btn { width: 100%; justify-content: center; }
+        }
+        @media (max-width: 480px) {
+            .page-title { font-size: 20px; }
+            .card { padding: 12px; }
+            .main-content { padding: 12px 16px; }
+            .chart-container { height: 250px; }
         }
     </style>
 </head>

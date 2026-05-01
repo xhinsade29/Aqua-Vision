@@ -592,6 +592,57 @@ $totalDevices = count($deviceActivity);
             font-size: 3rem;
             margin-bottom: 1rem;
         }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+            .header-actions {
+                width: 100%;
+                flex-direction: column;
+            }
+            .header-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .filter-bar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.75rem;
+            }
+            .filter-bar .form-group {
+                width: 100%;
+            }
+            .filter-bar .form-group select,
+            .filter-bar .form-group input {
+                width: 100%;
+            }
+            .filter-bar .btn {
+                width: 100%;
+            }
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 0.75rem;
+            }
+            .card {
+                padding: 1rem;
+            }
+        }
     </style>
 </head>
 <body>

@@ -483,14 +483,39 @@ include __DIR__ . '/../../assets/navigation.php';
         }
         
         /* Responsive */
+        @media (max-width: 1200px) {
+            .devices-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
             }
-            
             .header {
                 flex-direction: column;
                 gap: 1rem;
+            }
+            .devices-grid {
+                grid-template-columns: 1fr;
+            }
+            .header-actions {
+                width: 100%;
+            }
+            .header-actions .btn {
+                flex: 1;
+                justify-content: center;
+            }
+        }
+        @media (max-width: 480px) {
+            .container {
+                padding: 0.75rem;
+            }
+            .device-card {
+                padding: 1rem;
+            }
+            .device-name {
+                font-size: 1rem;
             }
         }
     </style>

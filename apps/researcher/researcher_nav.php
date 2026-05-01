@@ -318,6 +318,126 @@ $logoSrc = '/Aqua-Vision/assets/logo.png';
   .av-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--c4); }
 
   body { margin-left: var(--sidebar-w); }
+
+  /* ── Responsive Design ─────────────────────────────────── */
+  @media (max-width: 1024px) {
+    :root {
+      --sidebar-w: 200px;
+    }
+    .av-logo-icon {
+      width: 42px;
+      height: 42px;
+    }
+    .av-logo-title {
+      font-size: 13px;
+    }
+    .av-nav-label {
+      font-size: 13px;
+    }
+    .av-nav-sublabel {
+      font-size: 9px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    :root {
+      --sidebar-w: 0px;
+    }
+    .av-sidebar {
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+    }
+    .av-sidebar.open {
+      transform: translateX(0);
+    }
+    body {
+      margin-left: 0;
+    }
+    .av-logo-sub,
+    .av-nav-sublabel,
+    .av-user-role,
+    .av-role-badge {
+      display: none;
+    }
+    .av-logo-icon {
+      width: 40px;
+      height: 40px;
+    }
+    .av-mobile-toggle {
+      display: flex !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .av-logo-title {
+      font-size: 12px;
+    }
+    .av-nav-label {
+      font-size: 12px;
+    }
+    .av-user-name {
+      font-size: 11px;
+    }
+  }
+
+  /* Mobile menu toggle button */
+  .av-mobile-toggle {
+    display: none;
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 1001;
+    width: 44px;
+    height: 44px;
+    background: var(--c1);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+
+  .av-mobile-toggle span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: white;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+  }
+
+  .av-mobile-toggle span:nth-child(2) {
+    margin: 4px 0;
+  }
+
+  .av-mobile-toggle.active span:nth-child(1) {
+    transform: rotate(45deg) translate(5px, 5px);
+  }
+
+  .av-mobile-toggle.active span:nth-child(2) {
+    opacity: 0;
+  }
+
+  .av-mobile-toggle.active span:nth-child(3) {
+    transform: rotate(-45deg) translate(5px, -5px);
+  }
+
+  /* Overlay for mobile */
+  .av-sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+  }
+
+  .av-sidebar-overlay.active {
+    display: block;
+  }
 </style>
 
 <nav class="av-sidebar" id="av-sidebar" aria-label="Researcher navigation">
@@ -443,6 +563,16 @@ $logoSrc = '/Aqua-Vision/assets/logo.png';
   </div>
 
 </nav>
+
+<!-- Mobile Menu Toggle Button -->
+<button class="av-mobile-toggle" id="av-mobile-toggle" aria-label="Toggle menu">
+  <span></span>
+  <span></span>
+  <span></span>
+</button>
+
+<!-- Mobile Sidebar Overlay -->
+<div class="av-sidebar-overlay" id="av-sidebar-overlay"></div>
 
 <!-- Logout Modal -->
 <div id="logoutModal" class="modal-overlay" style="display:none">
@@ -576,6 +706,25 @@ $logoSrc = '/Aqua-Vision/assets/logo.png';
 </style>
 
 <script>
+// Mobile menu toggle
+const mobileToggle = document.getElementById('av-mobile-toggle');
+const sidebar = document.getElementById('av-sidebar');
+const overlay = document.getElementById('av-sidebar-overlay');
+
+if (mobileToggle && sidebar && overlay) {
+  mobileToggle.addEventListener('click', function() {
+    sidebar.classList.toggle('open');
+    mobileToggle.classList.toggle('active');
+    overlay.classList.toggle('active');
+  });
+
+  overlay.addEventListener('click', function() {
+    sidebar.classList.remove('open');
+    mobileToggle.classList.remove('active');
+    overlay.classList.remove('active');
+  });
+}
+
 function showLogoutModal() {
   document.getElementById('logoutModal').style.display = 'flex';
 }
@@ -588,6 +737,12 @@ function hideLogoutModal() {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
     hideLogoutModal();
+    // Also close mobile sidebar if open
+    if (sidebar && sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+      mobileToggle.classList.remove('active');
+      overlay.classList.remove('active');
+    }
   }
 });
 

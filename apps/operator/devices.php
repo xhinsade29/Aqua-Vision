@@ -320,9 +320,21 @@ unset($_SESSION['success'], $_SESSION['error']);
             border-radius: 10px; font-size: 11px; color: var(--c1);
         }
         
+        @media (max-width: 1200px) {
+            .device-grid { grid-template-columns: repeat(2, 1fr); }
+        }
         @media (max-width: 768px) {
             body { margin-left: 0; }
             .device-grid { grid-template-columns: 1fr; }
+            .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .main-content { padding: 16px 20px; }
+            .device-card { padding: 16px; }
+        }
+        @media (max-width: 480px) {
+            .page-title { font-size: 20px; }
+            .device-card { padding: 12px; }
+            .main-content { padding: 12px 16px; }
+            .device-name { font-size: 16px; }
         }
     </style>
 </head>
