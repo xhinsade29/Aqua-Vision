@@ -804,51 +804,6 @@ if (($_GET['action'] ?? '') === 'fetch') {
                 <?php endif; ?>
             </div>
         </div>
-        
-        <!-- Maintenance Logs Section -->
-        <div class="timeline-container" style="margin-top: 24px;">
-            <div class="timeline-header" style="background: linear-gradient(135deg, #0891b2, #06b6d4);">
-                <span>🔧 Operator Maintenance Logs (<?= count($maintenanceLogs) ?>)</span>
-            </div>
-            <div class="timeline-body">
-                <?php if (empty($maintenanceLogs)): ?>
-                    <div class="empty-state">
-                        <div class="empty-state-icon">📭</div>
-                        <p>No maintenance logs recorded in the last <?= $hoursFilter ?> hours</p>
-                    </div>
-                <?php else: ?>
-                    <?php foreach ($maintenanceLogs as $log): ?>
-                        <div class="timeline-item">
-                            <div class="timeline-icon" style="background: #cffafe;">🔧</div>
-                            <div class="timeline-content">
-                                <div class="timeline-title">
-                                    <?= ucfirst(str_replace('_', ' ', $log['maintenance_type'])) ?>
-                                    <span class="timeline-badge info">Maintenance</span>
-                                    <?php if ($log['damage_level'] !== 'none'): ?>
-                                        <span class="timeline-badge critical">Damage: <?= ucfirst($log['damage_level']) ?></span>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="timeline-desc">
-                                    <strong><?= htmlspecialchars($log['device_name']) ?></strong>
-                                    <?php if ($log['malfunction_type']): ?>
-                                        <br><span style="color: var(--warning);">⚠️ <?= htmlspecialchars($log['malfunction_type']) ?></span>
-                                    <?php endif; ?>
-                                    <?php if ($log['notes']): ?>
-                                        <div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--gray-50); border-radius: 4px; font-size: 0.85rem;">
-                                            <?= htmlspecialchars($log['notes']) ?>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="timeline-meta">
-                                    <?= date('M d, Y H:i:s', strtotime($log['performed_at'])) ?>
-                                    • By: <?= htmlspecialchars($log['operator_name']) ?>
-                                </div>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-        </div>
     </div>
     
     <script>
