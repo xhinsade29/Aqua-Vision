@@ -35,8 +35,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             FROM users 
             WHERE username = ? OR email = ?
         ");
-        $stmt->bind_param("ss", $username, $username);
-        $stmt->execute();
+        
+        if ($stmt === false) {
+            $error = 'Database error: Unable to prepare statement. Please ensure the database schema has been imported.';
+        } else {
+            $stmt->bind_param("ss", $username, $username);
+            $stmt->execute();
         $result = $stmt->get_result();
         
         if ($result->num_rows === 1) {
@@ -73,7 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'User not found';
         }
         
-        $stmt->close();
+            $stmt->close();
+        }
     }
     
     $conn->close();
