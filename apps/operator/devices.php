@@ -43,6 +43,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['log_maintenance'])) {
     $malfunctionType = $_POST['malfunction_type'] ?? '';
     
     if ($deviceId > 0 && !empty($maintenanceType)) {
+        // Get device name for logging
+        $deviceStmt = $conn->prepare("SELECT device_name, status FROM devices WHERE device_id = ?");
+        $deviceStmt->bind_param("i", $deviceId);
+        $deviceStmt->execute();
+        $deviceResult = $deviceStmt->get_result();
+        $deviceData = $deviceResult->fetch_assoc();
+        $deviceName = $deviceData['device_name'] ?? 'Unknown';
+        $oldStatus = $deviceData['status'] ?? 'unknown';
+        $deviceStmt->close();
+        
         // Set device to maintenance status
         $stmt = $conn->prepare("UPDATE devices SET status = 'maintenance' WHERE device_id = ?");
         $stmt->bind_param("i", $deviceId);
@@ -55,6 +65,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['log_maintenance'])) {
         
         if ($stmt->execute()) {
             $_SESSION['success'] = 'Maintenance logged successfully: ' . ucfirst($maintenanceType);
+            
+            // Log to system_logs
+            $userId = $_SESSION['user_id'];
+            $action = 'DEVICE_MAINTENANCE';
+            $details = "Device: {$deviceName} (ID: {$deviceId}) | Type: {$maintenanceType} | Damage: {$damageLevel}";
+            if ($malfunctionType) {
+                $details .= " | Malfunction: {$malfunctionType}";
+            }
+            if ($notes) {
+                $details .= " | Notes: {$notes}";
+            }
+            $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+            $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            
+            $logStmt = $conn->prepare("INSERT INTO system_logs (user_id, action, details, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)");
+            $logStmt->bind_param("issss", $userId, $action, $details, $ipAddress, $userAgent);
+            $logStmt->execute();
+            $logStmt->close();
         } else {
             $_SESSION['error'] = 'Failed to log maintenance: ' . $stmt->error;
         }
@@ -68,13 +96,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['log_maintenance'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_device'])) {
     $deviceId = intval($_POST['device_id'] ?? 0);
     $status = $_POST['status'] ?? '';
-    $allowedStatuses = ['active', 'inactive', 'maintenance', 'damaged'];
+    $allowedStatuses = ['active', 'inactive', 'maintenance', 'offline'];
     
     if ($deviceId > 0 && in_array($status, $allowedStatuses)) {
+        // Get current device info for logging
+        $deviceStmt = $conn->prepare("SELECT device_name, status FROM devices WHERE device_id = ?");
+        $deviceStmt->bind_param("i", $deviceId);
+        $deviceStmt->execute();
+        $deviceResult = $deviceStmt->get_result();
+        $deviceData = $deviceResult->fetch_assoc();
+        $deviceName = $deviceData['device_name'] ?? 'Unknown';
+        $oldStatus = $deviceData['status'] ?? 'unknown';
+        $deviceStmt->close();
+        
         $stmt = $conn->prepare("UPDATE devices SET status = ? WHERE device_id = ?");
         $stmt->bind_param("si", $status, $deviceId);
         if ($stmt->execute()) {
             $_SESSION['success'] = 'Device status updated to ' . ucfirst($status);
+            
+            // Log to system_logs
+            $userId = $_SESSION['user_id'];
+            $action = 'DEVICE_STATUS_UPDATE';
+            $details = "Device: {$deviceName} (ID: {$deviceId}) | Status: '{$oldStatus}' → '{$status}'";
+            $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+            $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            
+            $logStmt = $conn->prepare("INSERT INTO system_logs (user_id, action, details, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)");
+            $logStmt->bind_param("issss", $userId, $action, $details, $ipAddress, $userAgent);
+            $logStmt->execute();
+            $logStmt->close();
         } else {
             $_SESSION['error'] = 'Failed to update device status.';
         }
@@ -439,7 +489,7 @@ unset($_SESSION['success'], $_SESSION['error']);
                                 <option value="active" <?= $device['status'] === 'active' ? 'selected' : '' ?>>🟢 Active</option>
                                 <option value="maintenance" <?= $device['status'] === 'maintenance' ? 'selected' : '' ?>>🟡 Maintenance</option>
                                 <option value="inactive" <?= $device['status'] === 'inactive' ? 'selected' : '' ?>>⚫ Inactive</option>
-                                <option value="damaged" <?= $device['status'] === 'damaged' ? 'selected' : '' ?>>🔴 Damaged</option>
+                                <option value="offline" <?= $device['status'] === 'offline' ? 'selected' : '' ?>>🔴 Offline</option>
                             </select>
                             <input type="hidden" name="update_device" value="1">
                         </form>

@@ -2037,11 +2037,13 @@ include __DIR__ . '/../../assets/navigation.php';
                             <div style="font-size: 0.875rem; font-weight: 600; margin-bottom: 0.75rem;">Select Device</div>
                             <select id="deviceSelector" onchange="selectDevice(this.value)" 
                                     style="width: 100%; padding: 0.5rem; border: 1px solid var(--gray-200); border-radius: var(--radius); font-size: 0.875rem;">
-                                <?php foreach ($devices as $device): ?>
+                                <?php foreach ($devices as $device): 
+                                    $devStatus = $device['status'] ?: 'unknown';
+                                ?>
                                     <option value="<?= $device['device_id'] ?>" 
                                             <?= isset($devices[0]) && $device['device_id'] === $devices[0]['device_id'] ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($device['device_name']) ?> 
-                                        <?= $device['status'] === 'active' ? '🟢' : ($device['status'] === 'maintenance' ? '🔵' : '🔴') ?>
+                                        <?= $devStatus === 'active' ? '🟢' : ($devStatus === 'maintenance' ? '🔵' : ($devStatus === 'offline' ? '🔴' : '⚪')) ?>
                                         <?= $device['location_name'] ? '• ' . htmlspecialchars($device['location_name']) : '• Unassigned' ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -2051,11 +2053,13 @@ include __DIR__ . '/../../assets/navigation.php';
                         <!-- Selected Device Details -->
                         <div id="selectedDeviceDetails">
                             <?php if (!empty($devices)): ?>
-                                <?php $firstDevice = $devices[0]; ?>
+                                <?php $firstDevice = $devices[0]; 
+                                    $firstStatus = $firstDevice['status'] ?: 'unknown';
+                                ?>
                                 <div style="background: var(--gray-50); padding: 1rem; border-radius: var(--radius);">
                                     <div style="font-weight: 600; margin-bottom: 0.5rem;"><?= htmlspecialchars($firstDevice['device_name']) ?></div>
                                     <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.5rem;">
-                                        Status: <span class="badge badge-<?= $firstDevice['status'] === 'active' ? 'success' : ($firstDevice['status'] === 'maintenance' ? 'warning' : 'danger') ?>"><?= ucfirst($firstDevice['status']) ?></span>
+                                        Status: <span class="badge badge-<?= $firstStatus === 'active' ? 'success' : ($firstStatus === 'maintenance' ? 'warning' : ($firstStatus === 'offline' ? 'danger' : 'info')) ?>"><?= ucfirst($firstStatus) ?></span>
                                     </div>
                                     <?php if ($firstDevice['location_name']): ?>
                                         <div style="font-size: 0.75rem; color: var(--gray-500); margin-bottom: 0.5rem;">
@@ -2120,7 +2124,7 @@ include __DIR__ . '/../../assets/navigation.php';
             <?php
             // Calculate device statistics
             $statusCounts = [
-                'active' => 0, 'maintenance' => 0, 'inactive' => 0, 'offline' => 0, 'unassigned' => 0
+                'active' => 0, 'maintenance' => 0, 'inactive' => 0, 'offline' => 0, 'unassigned' => 0, 'unknown' => 0
             ];
             $conditionCounts = [
                 'normal' => 0, 'displaced' => 0, 'damaged' => 0, 'malfunctioning' => 0
@@ -2131,9 +2135,11 @@ include __DIR__ . '/../../assets/navigation.php';
             ];
             
             foreach ($devices as $device) {
-                $status = $device['status'] ?? 'inactive';
+                $status = $device['status'] ?: 'unknown';
                 if (isset($statusCounts[$status])) {
                     $statusCounts[$status]++;
+                } else {
+                    $statusCounts['unknown']++;
                 }
                 
                 $condition = $device['device_condition'] ?? 'normal';
@@ -2168,6 +2174,7 @@ include __DIR__ . '/../../assets/navigation.php';
                                 <option value="maintenance">Maintenance</option>
                                 <option value="inactive">Inactive</option>
                                 <option value="offline">Offline</option>
+                                <option value="unassigned">Unassigned</option>
                             </select>
                         </div>
                         
@@ -2213,14 +2220,15 @@ include __DIR__ . '/../../assets/navigation.php';
                             <?php else: ?>
                                 <?php foreach ($devices as $device): ?>
                                     <tr class="device-row" 
-                                        data-status="<?= $device['status'] ?>" 
+                                        data-status="<?= $device['status'] ?: 'unknown' ?>" 
                                         data-condition="<?= $device['device_condition'] ?? 'normal' ?>"
                                         data-section="<?= $device['river_section'] ?? '' ?>"
                                         data-name="<?= strtolower(htmlspecialchars($device['device_name'])) ?>">
                                         <td><strong><?= htmlspecialchars($device['device_name']) ?></strong></td>
                                         <td>
-                                            <span class="badge badge-<?= $device['status'] === 'active' ? 'success' : ($device['status'] === 'maintenance' ? 'warning' : 'danger') ?>">
-                                                <?= ucfirst($device['status']) ?>
+                                            <?php $deviceStatus = $device['status'] ?: 'unknown'; ?>
+                                            <span class="badge badge-<?= $deviceStatus === 'active' ? 'success' : ($deviceStatus === 'maintenance' ? 'warning' : ($deviceStatus === 'offline' ? 'danger' : 'info')) ?>">
+                                                <?= ucfirst($deviceStatus) ?>
                                             </span>
                                             <?php if (($device['device_condition'] ?? 'normal') !== 'normal'): ?>
                                                 <span class="badge" style="background: <?= ($device['device_condition'] === 'displaced') ? '#7c3aed' : (($device['device_condition'] === 'damaged') ? '#1f2937' : '#d97706') ?>; margin-left: 4px;">
