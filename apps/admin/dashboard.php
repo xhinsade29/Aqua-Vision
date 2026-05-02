@@ -2115,39 +2115,48 @@ if (isset($_SESSION['error'])) {
 ?>
 
 <script>
-// Alert toast notification system
+// Alert toast notification system — only fires for NEW alerts
 document.addEventListener('DOMContentLoaded', function() {
-    // Check for new alerts every 10 seconds
-    let lastAlertCount = 0;
-    
+    // Track alert IDs that have already triggered a toast
+    const seenAlertIds = new Set();
+    let isFirstLoad = true;
+
     function checkAlerts() {
         fetch(`${SELF}?action=fetch&_=${Date.now()}`)
             .then(r => r.json())
             .then(d => {
-                if (d.ok && d.alerts) {
-                    const currentAlerts = d.alerts.filter(a => a.status === 'active');
-                    
-                    // Show toast for new alerts
-                    currentAlerts.forEach(alert => {
-                        const severity = alert.alert_type === 'critical' ? 'error' : 
-                                        alert.alert_type === 'high' ? 'warning' : 'warning';
-                        showToast(
-                            `${alert.device_name}: ${alert.message}`,
-                            severity,
-                            8000
-                        );
-                    });
-                    
-                    lastAlertCount = currentAlerts.length;
+                if (!d.ok || !d.alerts) return;
+
+                const activeAlerts = d.alerts.filter(a => a.status === 'active');
+
+                if (isFirstLoad) {
+                    // On first load: seed seen IDs without showing toasts
+                    activeAlerts.forEach(a => seenAlertIds.add(String(a.alert_id)));
+                    isFirstLoad = false;
+                    return;
                 }
+
+                // Only show toasts for alerts we haven't seen yet
+                activeAlerts.forEach(alert => {
+                    const id = String(alert.alert_id);
+                    if (seenAlertIds.has(id)) return;
+
+                    seenAlertIds.add(id);
+
+                    const severity = alert.alert_type === 'critical' ? 'error' : 'warning';
+                    const icon = alert.alert_type === 'critical' ? '🚨' : '⚠️';
+                    showToast(
+                        `${icon} ${alert.device_name}: ${alert.message}`,
+                        severity,
+                        8000
+                    );
+                });
             })
             .catch(() => {});
     }
-    
-    // Initial check after 2 seconds
+
+    // Initial seed after 2 seconds, then poll every 30 seconds
     setTimeout(checkAlerts, 2000);
-    
-    // Periodic checks every 30 seconds
     setInterval(checkAlerts, 30000);
 });
 </script>
