@@ -59,11 +59,12 @@ function av_overview_api_simulate(mysqli $conn): void {
         return;
     }
     
-    // Get the specific device
+    // Get the specific device with river section
     $deviceRes = $conn->query("
-        SELECT device_id, device_name 
-        FROM devices 
-        WHERE device_id = $deviceId AND status = 'active'
+        SELECT d.device_id, d.device_name, l.river_section
+        FROM devices d
+        LEFT JOIN locations l ON l.location_id = d.location_id
+        WHERE d.device_id = $deviceId AND d.status = 'active'
     ");
     
     if (!$deviceRes || $deviceRes->num_rows === 0) {
@@ -112,7 +113,8 @@ function av_overview_api_simulate(mysqli $conn): void {
             // Check for alerts
             if ($value < $minThreshold || $value > $maxThreshold) {
                 $alertType = ($value > $maxThreshold) ? 'high' : 'low';
-                $message = generate_alert_message($sensorType, $value, $minThreshold, $maxThreshold);
+                $riverSection = $device['river_section'] ?? '';
+                $message = generate_alert_message($sensorType, $value, $minThreshold, $maxThreshold, $riverSection);
                 
                 // Insert alert
                 $conn->query("
@@ -122,6 +124,7 @@ function av_overview_api_simulate(mysqli $conn): void {
                 
                 $alerts[] = [
                     'device_name' => $device['device_name'],
+                    'river_section' => $riverSection ? ucfirst($riverSection) : 'Unknown',
                     'sensor_type' => $sensorType,
                     'alert_type' => $alertType,
                     'message' => $message,

@@ -34,37 +34,9 @@ if (!in_array($_SESSION['user_role'] ?? '', $allowedRoles)) {
     exit;
 }
 
-// ── Handle Alert Acknowledgment ────────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acknowledge_alert'])) {
-    $alertId = intval($_POST['alert_id'] ?? 0);
-    if ($alertId > 0) {
-        $stmt = $conn->prepare("UPDATE alerts SET status = 'resolved', resolved_at = NOW(), resolved_by = ? WHERE alert_id = ?");
-        $stmt->bind_param("ii", $_SESSION['user_id'], $alertId);
-        if ($stmt->execute()) {
-            $_SESSION['success'] = 'Alert acknowledged successfully!';
-        } else {
-            $_SESSION['error'] = 'Failed to acknowledge alert.';
-        }
-        $stmt->close();
-    }
-    header('Location: ' . $_SERVER['PHP_SELF']);
-    exit;
-}
-
-// ── Handle Acknowledge All Alerts ─────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acknowledge_all'])) {
-    $stmt = $conn->prepare("UPDATE alerts SET status = 'resolved', resolved_at = NOW(), resolved_by = ? WHERE status = 'active'");
-    $stmt->bind_param("i", $_SESSION['user_id']);
-    if ($stmt->execute()) {
-        $affected = $stmt->affected_rows;
-        $_SESSION['success'] = "All {$affected} alerts acknowledged successfully!";
-    } else {
-        $_SESSION['error'] = 'Failed to acknowledge alerts.';
-    }
-    $stmt->close();
-    header('Location: ' . $_SERVER['PHP_SELF']);
-    exit;
-}
+// NOTE: Alert acknowledgment is restricted to ADMIN only
+// Operators can view alerts but cannot acknowledge them
+// When admin acknowledges alerts, they will disappear from this panel automatically on refresh
 
 // ── Handle Device Status Update ──────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_device'])) {
@@ -97,21 +69,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_device'])) {
 
 // ── Get Operator's Activity History ────────────────────────────────────────
 function getMyActivityHistory($conn, $userId, $limit = 10) {
+    // Note: No longer showing resolved alerts since operators cannot resolve them
+    // Only show maintenance activities
     $sql = "SELECT 
-                'alert_resolved' as action_type,
-                a.alert_id as reference_id,
-                a.message as details,
-                a.resolved_at as action_time,
-                d.device_name,
-                NULL as maintenance_type
-            FROM alerts a
-            JOIN sensors s ON s.sensor_id = a.sensor_id
-            JOIN devices d ON d.device_id = s.device_id
-            WHERE a.resolved_by = ? AND a.resolved_at IS NOT NULL
-            
-            UNION ALL
-            
-            SELECT 
                 'maintenance' as action_type,
                 ml.maintenance_id as reference_id,
                 ml.notes as details,
@@ -126,7 +86,7 @@ function getMyActivityHistory($conn, $userId, $limit = 10) {
             LIMIT ?";
     
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("iii", $userId, $userId, $limit);
+    $stmt->bind_param("ii", $userId, $limit);
     $stmt->execute();
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
@@ -240,6 +200,18 @@ function getDevicesWithStatus($conn) {
             GROUP BY d.device_id
             ORDER BY d.device_name";
     return $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
+}
+
+// ── API: Get Alert Count (for operator auto-sync) ──────────────────────────
+if (($_GET['action'] ?? '') === 'get_alert_count') {
+    header('Content-Type: application/json');
+    try {
+        $count = (int)$conn->query("SELECT COUNT(*) as cnt FROM alerts WHERE status='active'")->fetch_assoc()['cnt'];
+        echo json_encode(['ok'=>true,'alert_count'=>$count]);
+    } catch (Exception $e) {
+        echo json_encode(['ok'=>false,'error'=>$e->getMessage()]);
+    }
+    exit;
 }
 
 function getRecentOperationalData($conn, $hours = 24) {
@@ -383,8 +355,11 @@ unset($_SESSION['success'], $_SESSION['error']);
         
         /* Alert Item */
         .alert-item {
-            display: flex; align-items: flex-start; gap: 12px;
-            padding: 16px 20px; border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
             transition: background 0.2s;
         }
         .alert-item:hover { background: var(--bg); }
@@ -537,21 +512,26 @@ unset($_SESSION['success'], $_SESSION['error']);
             <!-- Active Alerts -->
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title">🔔 Active Alerts (<?= count($alerts) ?>)</span>
-                    <?php if (!empty($alerts)): ?>
-                        <form method="POST" style="display: inline;">
-                            <button type="submit" name="acknowledge_all" class="ack-btn" style="background: var(--c2);" onclick="return confirm('Acknowledge ALL <?= count($alerts) ?> alerts? This will mark them all as resolved.');">
-                                ✓ Acknowledge All
-                            </button>
-                        </form>
-                    <?php endif; ?>
+                    <span class="card-title">🔔 Active Alerts (<?= count($alerts) ?>) <span style="font-size:11px;color:var(--text3);font-weight:400;">— Admin Only</span></span>
+                    <span id="alertSyncStatus" style="font-size:11px;color:var(--text3);">🔄 Auto-sync</span>
                 </div>
                 <div class="card-body">
+                    <!-- DEBUG: Alerts count: <?= count($alerts) ?>, Raw: <?= print_r($alerts, true) ?> -->
                     <?php if (empty($alerts)): ?>
                         <div class="empty-state">
                             <div class="empty-state-icon">✅</div>
                             <div class="empty-state-title">No Active Alerts</div>
                             <p style="color: var(--text3); font-size: 13px;">All systems operating normally</p>
+                            <!-- Debug: Check if alerts exist in database -->
+                            <?php 
+                            $totalAlerts = $conn->query("SELECT COUNT(*) as cnt FROM alerts")->fetch_assoc()['cnt'];
+                            $resolvedAlerts = $conn->query("SELECT COUNT(*) as cnt FROM alerts WHERE status='resolved'")->fetch_assoc()['cnt'];
+                            if ($totalAlerts > 0 && $resolvedAlerts == $totalAlerts): 
+                            ?>
+                                <p style="color: var(--warn); font-size: 11px; margin-top: 8px;">
+                                    📋 <?= $totalAlerts ?> alert(s) were acknowledged by admin
+                                </p>
+                            <?php endif; ?>
                         </div>
                     <?php else: ?>
                         <?php foreach (array_slice($alerts, 0, 8) as $alert): ?>
@@ -569,12 +549,9 @@ unset($_SESSION['success'], $_SESSION['error']);
                                         <?= $alert['value'] ? '• Value: ' . round($alert['value'], 2) : '' ?>
                                     </div>
                                 </div>
-                                <form method="POST" style="display: inline;">
-                                    <input type="hidden" name="alert_id" value="<?= $alert['alert_id'] ?>">
-                                    <button type="submit" name="acknowledge_alert" class="ack-btn" onclick="return confirm('Acknowledge this alert?');">
-                                        ✓ Ack
-                                    </button>
-                                </form>
+                                <div style="font-size:11px;color:var(--text3);padding:4px 8px;background:var(--gray-100);border-radius:4px;white-space:nowrap;">
+                                    ⏳ Waiting Admin
+                                </div>
                             </div>
                         <?php endforeach; ?>
                         <?php if (count($alerts) > 8): ?>
@@ -721,6 +698,56 @@ unset($_SESSION['success'], $_SESSION['error']);
                 }
             });
         <?php endif; ?>
+        
+        // Auto-sync alerts every 15 seconds (to see admin acknowledgments)
+        let initialAlertCount = <?= count($alerts) ?>;
+        let lastAlertCount = initialAlertCount;
+        
+        async function syncAlerts() {
+            try {
+                const res = await fetch('dashboard.php?action=get_alert_count&_=' + Date.now());
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data.ok) return;
+                
+                const currentCount = data.alert_count;
+                
+                // If alerts decreased, admin acknowledged some
+                if (currentCount < lastAlertCount) {
+                    const cleared = lastAlertCount - currentCount;
+                    if (typeof showToast === 'function') {
+                        const msg = cleared === 1 
+                            ? '1 alert cleared by admin - refreshing...' 
+                            : cleared + ' alerts cleared by admin - refreshing...';
+                        showToast(msg, 'success', 3000);
+                    }
+                    // Reload page after short delay to show updated alerts
+                    setTimeout(() => location.reload(), 2000);
+                }
+                // If alerts increased, new alerts appeared
+                else if (currentCount > lastAlertCount) {
+                    const newAlerts = currentCount - lastAlertCount;
+                    if (typeof showToast === 'function') {
+                        const msg = newAlerts === 1 
+                            ? '⚠️ 1 new alert detected!' 
+                            : '⚠️ ' + newAlerts + ' new alerts detected!';
+                        showToast(msg, 'warning', 4000);
+                    }
+                    lastAlertCount = currentCount;
+                }
+                
+                // Update sync status indicator
+                const syncStatus = document.getElementById('alertSyncStatus');
+                if (syncStatus) {
+                    syncStatus.textContent = '🔄 Synced ' + new Date().toLocaleTimeString();
+                }
+            } catch (e) {
+                console.log('Alert sync error:', e);
+            }
+        }
+        
+        // Start auto-sync every 15 seconds
+        setInterval(syncAlerts, 15000);
     </script>
 </body>
 </html>

@@ -83,7 +83,7 @@ function format_datetime($datetime, $format = 'M j, Y H:i') {
 }
 
 // Generate alert message
-function generate_alert_message($sensorType, $value, $min, $max) {
+function generate_alert_message($sensorType, $value, $min, $max, $riverSection = '') {
     $sensorLabels = [
         'temperature' => 'Temperature',
         'ph_level' => 'pH Level',
@@ -95,11 +95,12 @@ function generate_alert_message($sensorType, $value, $min, $max) {
     ];
     
     $label = $sensorLabels[$sensorType] ?? $sensorType;
+    $sectionText = $riverSection ? " [" . ucfirst($riverSection) . "]" : '';
     
     if ($value > $max) {
-        return "$label too high: " . number_format($value, 2) . " (max: $max)";
+        return "$label too high{$sectionText}: " . number_format($value, 2) . " (max: $max)";
     } else {
-        return "$label too low: " . number_format($value, 2) . " (min: $min)";
+        return "$label too low{$sectionText}: " . number_format($value, 2) . " (min: $min)";
     }
 }
 

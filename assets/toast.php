@@ -67,6 +67,31 @@
     animation: toastSlideOut 0.3s ease-in forwards;
 }
 
+.toast.clickable {
+    cursor: pointer;
+}
+
+.toast.clickable:hover {
+    transform: translateX(-4px);
+    box-shadow: 0 12px 48px rgba(0,0,0,0.2);
+}
+
+.toast.clickable::after {
+    content: '→';
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: #9ca3af;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.toast.clickable:hover::after {
+    opacity: 1;
+}
+
 .toast-icon {
     width: 24px;
     height: 24px;
@@ -146,6 +171,22 @@
     from { width: 100%; }
     to { width: 0%; }
 }
+
+/* Alert highlight for when clicking toast - ONLY applies to .alert-item elements */
+.alert-item.highlighted {
+    border-left: 4px solid #dc2626 !important;
+    background-color: #fef2f2 !important;
+    box-shadow: 0 0 15px 3px rgba(220, 38, 38, 0.25) !important;
+    transition: all 0.3s ease !important;
+}
+
+/* Ensure parent containers are NOT highlighted */
+#alertsPanel.highlighted,
+.grid-bottom.highlighted {
+    border-left: none !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
 </style>
 
 <!-- Toast Container -->
@@ -171,13 +212,15 @@ const ToastTitles = {
  * @param {string} message - The message to display
  * @param {string} type - success, error, warning, info
  * @param {number} duration - Duration in milliseconds (default: 5000)
+ * @param {function} onClick - Optional click handler function
  */
-function showToast(message, type = 'info', duration = 5000) {
+function showToast(message, type = 'info', duration = 5000, onClick = null) {
     const container = document.getElementById('toastContainer');
     if (!container) return;
     
     const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
+    toast.className = `toast ${type} ${onClick ? 'clickable' : ''}`;
+    toast.style.position = 'relative';
     
     toast.innerHTML = `
         <div class="toast-icon">${ToastIcons[type] || 'ℹ'}</div>
@@ -185,14 +228,40 @@ function showToast(message, type = 'info', duration = 5000) {
             <div class="toast-title">${ToastTitles[type] || 'Info'}</div>
             <div class="toast-message">${message}</div>
         </div>
-        <div class="toast-close" onclick="hideToast(this.parentElement)">×</div>
+        <div class="toast-close" onclick="event.stopPropagation(); hideToast(this.parentElement);">×</div>
         <div class="toast-progress" style="animation-duration: ${duration}ms;"></div>
     `;
+    
+    // Add click handler if provided
+    if (onClick) {
+        toast.addEventListener('click', function(e) {
+            if (!e.target.classList.contains('toast-close')) {
+                onClick();
+            }
+        });
+    }
     
     container.appendChild(toast);
     
     // Auto hide after duration
     setTimeout(() => hideToast(toast), duration);
+}
+
+/**
+ * Scroll to the alerts panel smoothly
+ */
+function scrollToAlertsPanel() {
+    const alertsPanel = document.getElementById('alertsPanel') || 
+                        document.querySelector('.grid-bottom');
+    if (alertsPanel) {
+        alertsPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Highlight the alerts panel briefly
+        alertsPanel.style.transition = 'box-shadow 0.3s';
+        alertsPanel.style.boxShadow = '0 0 0 4px rgba(217, 119, 6, 0.4)';
+        setTimeout(() => {
+            alertsPanel.style.boxShadow = '';
+        }, 1500);
+    }
 }
 
 /**

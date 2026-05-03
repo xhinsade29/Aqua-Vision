@@ -110,10 +110,11 @@ if (($_GET['action'] ?? '') === 'simulate' && $_SERVER['REQUEST_METHOD'] === 'PO
         if ($v < $mn || $v > $mx) {
             $dir = $v < $mn ? 'low' : 'high';
             $type = ($v < $mn * 0.8 || $v > $mx * 1.3) ? 'critical' : $dir;
-            $msg = "$lbl $dir: $v (safe $mn–$mx) on {$dev['device_name']}";
+            $section = $dev['river_section'] ? ' [' . ucfirst($dev['river_section']) . ']' : '';
+            $msg = "$lbl $dir{$section}: $v $unit (safe $mn–$mx) on {$dev['device_name']}";
             $ast = $conn->prepare("INSERT INTO alerts (sensor_id, reading_id, alert_type, message, status, created_at) VALUES (?,?,?,?,'active',NOW())");
             $ast->bind_param('iiss', $sid, $rid, $type, $msg); $ast->execute(); $ast->close();
-            $alertsCreated[] = ['type'=>$type,'message'=>$msg,'sensor_type'=>$stype,'value'=>$v];
+            $alertsCreated[] = ['type'=>$type,'message'=>$msg,'sensor_type'=>$stype,'value'=>$v,'river_section'=>$dev['river_section']];
         }
     }
 
@@ -207,7 +208,7 @@ function _build_full_fetch(mysqli $conn): array {
         $deviceReadings[$did] = array_sum(array_map(fn($v)=>$v!==null?1:0, array_intersect_key($flat, array_flip(['temperature','ph_level','turbidity','dissolved_oxygen','water_level','sediments'])))) > 0 ? $flat : null;
     }
 
-    $aRes = $conn->query("SELECT a.alert_id,a.alert_type,a.message,a.created_at,l.location_name,d.device_name,s.sensor_type FROM alerts a JOIN sensors s ON s.sensor_id=a.sensor_id JOIN devices d ON d.device_id=s.device_id JOIN locations l ON l.location_id=d.location_id WHERE a.status='active' ORDER BY a.created_at DESC LIMIT 10");
+    $aRes = $conn->query("SELECT a.alert_id,a.alert_type,a.message,a.created_at,l.location_name,l.river_section,d.device_name,s.sensor_type FROM alerts a JOIN sensors s ON s.sensor_id=a.sensor_id JOIN devices d ON d.device_id=s.device_id JOIN locations l ON l.location_id=d.location_id WHERE a.status='active' ORDER BY a.created_at DESC LIMIT 10");
     $alerts = [];
     while ($r = $aRes->fetch_assoc()) $alerts[] = $r;
 
@@ -281,6 +282,88 @@ if (($_GET['action'] ?? '') === 'fetch') {
     exit;
 }
 
+// ── API: ?action=acknowledge_all ────────────────────────────────────────────────
+if (($_GET['action'] ?? '') === 'acknowledge_all' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    error_reporting(0); ini_set('display_errors', 0);
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json');
+    try {
+        $userId = $_SESSION['user_id'] ?? 0;
+        // Update all active alerts to resolved
+        $stmt = $conn->prepare("UPDATE alerts SET status='resolved', resolved_by=?, resolved_at=NOW() WHERE status='active'");
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+        
+        // Log the action
+        if ($affected > 0) {
+            $logDetails = "User acknowledged all {$affected} active alerts";
+            $logStmt = $conn->prepare("INSERT INTO system_logs (user_id, action, details, ip_address) VALUES (?, 'ALERTS_ACKNOWLEDGE', ?, ?)");
+            $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+            $logStmt->bind_param('iss', $userId, $logDetails, $ip);
+            $logStmt->execute();
+            $logStmt->close();
+        }
+        
+        echo json_encode(['ok'=>true,'count'=>$affected]);
+    } catch (Exception $e) { echo json_encode(['ok'=>false,'error'=>$e->getMessage()]); }
+    exit;
+}
+
+// ── API: ?action=force_test_alert ─────────────────────────────────────────────
+if (($_GET['action'] ?? '') === 'force_test_alert' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    error_reporting(0); ini_set('display_errors', 0);
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json');
+    try {
+        // Get first active device with a sensor
+        $deviceRes = $conn->query("SELECT d.device_id, s.sensor_id, s.sensor_type, s.min_threshold, s.max_threshold, l.river_section 
+                                   FROM devices d 
+                                   JOIN sensors s ON s.device_id = d.device_id 
+                                   LEFT JOIN locations l ON l.location_id = d.location_id
+                                   WHERE d.status='active' LIMIT 1");
+        if (!$deviceRes || $deviceRes->num_rows === 0) {
+            echo json_encode(['ok'=>false,'error'=>'No active devices with sensors found']);
+            exit;
+        }
+        $device = $deviceRes->fetch_assoc();
+        $deviceId = $device['device_id'];
+        $sensorId = $device['sensor_id'];
+        $sensorType = $device['sensor_type'];
+        $maxThreshold = $device['max_threshold'];
+        $riverSection = $device['river_section'] ?? 'Unknown';
+        
+        // Create a test reading with value exceeding threshold
+        $testValue = $maxThreshold + 10; // Force value above max threshold
+        $readingStmt = $conn->prepare("INSERT INTO sensor_readings (sensor_id, value, recorded_at) VALUES (?, ?, NOW())");
+        $readingStmt->bind_param('id', $sensorId, $testValue);
+        $readingStmt->execute();
+        $readingId = $conn->insert_id;
+        $readingStmt->close();
+        
+        // Create alert for this reading
+        require_once '../../database/config.php';
+        $message = generate_alert_message($sensorType, $testValue, $device['min_threshold'], $maxThreshold, $riverSection);
+        $alertStmt = $conn->prepare("INSERT INTO alerts (sensor_id, reading_id, alert_type, message, status, created_at) VALUES (?, ?, 'high', ?, 'active', NOW())");
+        $alertStmt->bind_param('iis', $sensorId, $readingId, $message);
+        $alertStmt->execute();
+        $alertStmt->close();
+        
+        // Log test alert creation
+        $userId = $_SESSION['user_id'] ?? 0;
+        $logStmt = $conn->prepare("INSERT INTO system_logs (user_id, action, details, ip_address) VALUES (?, 'TEST_ALERT_CREATED', ?, ?)");
+        $logDetails = "Test alert created for {$sensorType} on device {$deviceId}: {$message}";
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $logStmt->bind_param('iss', $userId, $logDetails, $ip);
+        $logStmt->execute();
+        $logStmt->close();
+        
+        echo json_encode(['ok'=>true,'message'=>$message]);
+    } catch (Exception $e) { echo json_encode(['ok'=>false,'error'=>$e->getMessage()]); }
+    exit;
+}
+
 // ── Page Data ─────────────────────────────────────────────────────────────────
 $currentPage = 'overview';
 $tablesExist = $conn->query("SHOW TABLES LIKE 'devices'")->num_rows > 0;
@@ -289,7 +372,7 @@ if (!$tablesExist) { header('Location: ../database/setup.php'); exit(); }
 $devCounts = $conn->query("SELECT COUNT(*) AS total,SUM(status='active') AS active,SUM(status='inactive') AS offline,SUM(status='maintenance') AS maint FROM devices")->fetch_assoc();
 $alertCount = (int)$conn->query("SELECT COUNT(*) AS cnt FROM alerts WHERE status='active'")->fetch_assoc()['cnt'];
 
-$alertsRes = $conn->query("SELECT a.alert_id,a.alert_type,a.message,a.created_at,l.location_name,d.device_name FROM alerts a JOIN sensors s ON s.sensor_id=a.sensor_id JOIN devices d ON d.device_id=s.device_id JOIN locations l ON l.location_id=d.location_id WHERE a.status='active' ORDER BY a.created_at DESC LIMIT 10");
+$alertsRes = $conn->query("SELECT a.alert_id,a.alert_type,a.message,a.created_at,l.location_name,l.river_section,d.device_name FROM alerts a JOIN sensors s ON s.sensor_id=a.sensor_id JOIN devices d ON d.device_id=s.device_id JOIN locations l ON l.location_id=d.location_id WHERE a.status='active' ORDER BY a.created_at DESC LIMIT 10");
 $alerts = [];
 if ($alertsRes) while ($r = $alertsRes->fetch_assoc()) $alerts[] = $r;
 
@@ -485,6 +568,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
 .alert-ic.crit{background:var(--crit-bg)}.alert-ic.warn{background:var(--warn-bg)}
 .alert-msg{font-size:12px;font-weight:500;color:var(--ink);line-height:1.4}
 .alert-meta{font-size:11px;color:var(--ink4);margin-top:3px;font-family:var(--mono)}
+.alert-item.highlighted{border-left:4px solid #dc2626 !important;background-color:#fef2f2 !important;box-shadow:0 0 15px 3px rgba(220,38,38,0.25) !important;transition:all 0.3s ease !important}
 .maint-item{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--rule)}
 .maint-item:last-child{border-bottom:none}
 .maint-ic{width:32px;height:32px;border-radius:var(--r);background:var(--warn-bg);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
@@ -883,31 +967,52 @@ body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:10
 </div>
 
 <!-- Alerts + Maintenance -->
-<div class="section-head fade-in">
+<div id="alertsSection" class="section-head fade-in">
   <div class="section-label">Events &amp; Maintenance</div>
 </div>
-<div class="grid-bottom fade-in">
+<div id="alertsPanel" class="grid-bottom fade-in">
   <div class="card">
     <div class="card-head">
       <div class="card-head-l"><span class="card-title">Active Alerts</span></div>
-      <span id="alertPill" class="tag <?= $alertCount>0?'tag-crit':'tag-good' ?>"><?= $alertCount ?> Active</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+                <?php if ($alertCount > 0): ?>
+                <button onclick="acknowledgeAllAlerts()" style="padding:4px 12px;font-size:11px;border:1px solid var(--gray-300);background:var(--surf);border-radius:4px;cursor:pointer;color:var(--ink3);">
+                  ✓ Acknowledge All
+                </button>
+                <?php else: ?>
+                <button onclick="forceTestAlert()" style="padding:4px 12px;font-size:11px;border:1px solid var(--warn);background:#fffbeb;border-radius:4px;cursor:pointer;color:var(--warn);" title="Create a test alert to verify display">
+                  ⚠ Force Test Alert
+                </button>
+                <?php endif; ?>
+        <span id="alertPill" class="tag <?= $alertCount>0?'tag-crit':'tag-good' ?>"><?= $alertCount ?> Active</span>
+      </div>
     </div>
     <div id="alertsBody">
       <?php if (empty($alerts)): ?>
         <div class="empty">✓ No active alerts — all sensors nominal.</div>
       <?php else: ?>
-        <?php foreach ($alerts as $al):
+        <?php 
+        $displayAlerts = array_slice($alerts, 0, 5); // Show only first 5
+        foreach ($displayAlerts as $al):
           $cls = in_array($al['alert_type'],['critical','high'])?'crit':'warn';
           $em  = $cls==='crit'?'🚨':'⚠️';
+          $section = $al['river_section'] ?? 'Unknown';
         ?>
-        <div class="alert-item">
+        <div class="alert-item" id="alert-<?= $al['alert_id'] ?>">
           <div class="alert-ic <?= $cls ?>"><?= $em ?></div>
           <div>
             <div class="alert-msg"><?= htmlspecialchars($al['message']) ?></div>
-            <div class="alert-meta"><?= htmlspecialchars($al['device_name']) ?> · <?= htmlspecialchars($al['location_name']) ?> · <?= date('H:i, M j',strtotime($al['created_at'])) ?></div>
+            <div class="alert-meta"><?= htmlspecialchars($al['device_name']) ?> · <?= htmlspecialchars($section) ?> · <?= htmlspecialchars($al['location_name']) ?> · <?= date('H:i, M j',strtotime($al['created_at'])) ?></div>
           </div>
         </div>
         <?php endforeach; ?>
+        <?php if (count($alerts) > 5): ?>
+        <div style="text-align:center;padding:12px;border-top:1px solid var(--gray-200);">
+          <a href="activitylog.php?filter=alerts" style="font-size:12px;color:var(--primary);text-decoration:none;">
+            View all <?= count($alerts) ?> alerts →
+          </a>
+        </div>
+        <?php endif; ?>
       <?php endif; ?>
     </div>
   </div>
@@ -1280,25 +1385,51 @@ function _applySync(d) {
   else if((d.devices||[]).length>0&&sel&&!sel.value){ sel.value=d.devices[0].device_id; showDeviceData(d.devices[0].device_id); }
 
   // Chart
-  if(d.chart_data){
-    CHART_DS.forEach((ds,i)=>{ chart.data.datasets[i].data=d.chart_data[ds.key]||Array(24).fill(null); });
+  if(d.chart_data && chart && chart.data && chart.data.datasets){
+    CHART_DS.forEach((ds,i)=>{ 
+      if(chart.data.datasets[i]) {
+        chart.data.datasets[i].data=d.chart_data[ds.key]||Array(24).fill(null); 
+      }
+    });
     Object.keys(d.device_chart_data||{}).forEach(did=>{ allChartData[did]=d.device_chart_data[did]; });
-    // updateChart();
-    // updateMetricCharts();
   }
 
   // Alerts
   const ap=document.getElementById('alertPill');
   if(ap){ap.textContent=`${d.alert_count} Active`;ap.className=`tag ${d.alert_count>0?'tag-crit':'tag-good'}`;}
+  
+  // Show toast for new alerts during sync (with cooldown)
+  if(d.alert_count > _lastAlertCount && _lastAlertCount > 0) {
+    const now = Date.now();
+    if(now - _lastToastTime > TOAST_COOLDOWN) {
+      const newAlerts = d.alert_count - _lastAlertCount;
+      const msg = newAlerts === 1 ? '1 new water quality alert detected!' : `${newAlerts} new water quality alerts detected!`;
+      // Always pass first alert ID to highlight the most recent alert
+      const newAlertId = (d.alerts && d.alerts.length > 0) ? d.alerts[0].alert_id : null;
+      showToast(msg + ' (click to view)', 'warning', 4000, () => scrollToAlertsPanel(newAlertId));
+      _lastToastTime = now;
+    }
+  }
+  _lastAlertCount = d.alert_count;
+  
   const ab=document.getElementById('alertsBody');
   if(ab){
     if(!(d.alerts||[]).length){ab.innerHTML='<div class="empty">✓ No active alerts — all sensors nominal.</div>';}
-    else ab.innerHTML=d.alerts.map(al=>{
-      const cls=(['critical','high'].includes(al.alert_type))?'crit':'warn';
-      const em=cls==='crit'?'🚨':'⚠️';
-      const ts=new Date(al.created_at.replace(' ','T')).toLocaleString('en-PH',{hour:'2-digit',minute:'2-digit',month:'short',day:'numeric',hour12:false});
-      return `<div class="alert-item"><div class="alert-ic ${cls}">${em}</div><div><div class="alert-msg">${_e(al.message)}</div><div class="alert-meta">${_e(al.device_name)} · ${_e(al.location_name)} · ${ts}</div></div></div>`;
-    }).join('');
+    else {
+      const displayAlerts = d.alerts.slice(0, 5); // Limit to 5
+      let html = displayAlerts.map(al=>{
+        const cls=(['critical','high'].includes(al.alert_type))?'crit':'warn';
+        const em=cls==='crit'?'🚨':'⚠️';
+        const ts=new Date(al.created_at.replace(' ','T')).toLocaleString('en-PH',{hour:'2-digit',minute:'2-digit',month:'short',day:'numeric',hour12:false});
+        const section = al.river_section ? _e(al.river_section).charAt(0).toUpperCase() + _e(al.river_section).slice(1) : 'Unknown';
+        return `<div class="alert-item" id="alert-${al.alert_id}"><div class="alert-ic ${cls}">${em}</div><div><div class="alert-msg">${_e(al.message)}</div><div class="alert-meta">${_e(al.device_name)} · ${section} · ${_e(al.location_name)} · ${ts}</div></div></div>`;
+      }).join('');
+      // Add view more link if more than 5
+      if(d.alerts.length > 5) {
+        html += `<div style="text-align:center;padding:12px;border-top:1px solid var(--gray-200);"><a href="activitylog.php?filter=alerts" style="font-size:12px;color:var(--primary);text-decoration:none;">View all ${d.alerts.length} alerts →</a></div>`;
+      }
+      ab.innerHTML = html;
+    }
   }
 
   // Maintenance
@@ -1362,6 +1493,10 @@ const MODES = {
 const SIM_DEVICE_MODES = {};
 const MODE_NAMES = ['normal', 'flood', 'pollution', 'drought'];
 let _ds = {}, _di = 0, _st = null, _sc = 0, _sac = 0; // Simulation variables
+let _lastAlertCount = 0; // Track alert count for toast notifications
+let _lastToastTime = 0; // Prevent toast spam
+const TOAST_COOLDOWN = 3000; // Min 3 seconds between toasts
+let _pendingAlerts = []; // Batch alerts for single toast
 
 function _assignDeviceModes() {
   // Distribute modes evenly across all devices (round-robin)
@@ -1385,7 +1520,8 @@ function _slog(msg,color){
   d.style.cssText=`color:${color||'var(--ink3)'};padding:1px 0`;
   d.textContent=`[${now}]  ${msg}`;
   log.appendChild(d);
-  while(log.children.length>80) log.removeChild(log.firstChild);
+  // Keep only last 20 entries (reduce from 80 to prevent overwhelming)
+  while(log.children.length>20) log.removeChild(log.firstChild);
   // Auto-scroll to bottom (newest entries at bottom)
   log.scrollTop = log.scrollHeight;
 }
@@ -1418,7 +1554,35 @@ async function _sendTick() {
       _sc++;
       if(data.alerts_created&&data.alerts_created.length>0){
         _sac+=data.alerts_created.length;
-        data.alerts_created.forEach(a=>_slog(`⚠ ALERT [${a.type.toUpperCase()}] ${a.message}`,'var(--warn)'));
+        let criticalCount = 0, highCount = 0, lowCount = 0;
+        data.alerts_created.forEach(a=>{
+          const section = a.river_section ? `[${a.river_section.toUpperCase()}] ` : '';
+          _slog(`⚠ ALERT [${a.type.toUpperCase()}] ${section}${a.message}`,'var(--warn)');
+          if(a.type === 'critical') criticalCount++;
+          else if(a.type === 'high') highCount++;
+          else lowCount++;
+        });
+        // Batch toast - show summary instead of individual alerts
+        const now = Date.now();
+        if(now - _lastToastTime > TOAST_COOLDOWN) {
+          let toastMsg = '';
+          let toastType = 'info';
+          if(criticalCount > 0) {
+            toastMsg = criticalCount === 1 ? '🚨 1 Critical alert!' : `🚨 ${criticalCount} Critical alerts!`;
+            toastType = 'error';
+          } else if(highCount > 0) {
+            toastMsg = highCount === 1 ? '⚠️ 1 High priority alert' : `⚠️ ${highCount} High priority alerts`;
+            toastType = 'warning';
+          } else if(lowCount > 0) {
+            toastMsg = lowCount === 1 ? 'ℹ️ 1 Low priority alert' : `ℹ️ ${lowCount} Low priority alerts`;
+          }
+          if(toastMsg) {
+            // Pass first alert ID to highlight the most recent alert
+            const firstAlertId = data.alerts_created && data.alerts_created.length > 0 ? data.alerts_created[0].alert_id : null;
+            showToast(toastMsg + ' (click to view)', toastType, 4000, () => scrollToAlertsPanel(firstAlertId));
+            _lastToastTime = now;
+          }
+        }
       }
       _slog(`✓ #${data.reading_id} ${data.device_name} [${mode.toUpperCase()}] — T:${p.temperature} pH:${p.ph_level} Tu:${p.turbidity} DO:${p.dissolved_oxygen} Lv:${p.water_level} Sed:${p.sediments}`,'var(--good)');
       
@@ -1925,6 +2089,92 @@ function updateOverallSensorStatus() {
   });
 }
 
+// ── Acknowledge All Alerts ──────────────────────────────────────
+async function acknowledgeAllAlerts() {
+  if(!confirm('Acknowledge all active alerts? They will be marked as resolved.')) return;
+  try {
+    const res = await fetch(`${SELF}?action=acknowledge_all`, {method:'POST'});
+    const data = await res.json();
+    if(data.ok) {
+      showToast(`${data.count} alerts acknowledged`, 'success', 3000);
+      syncNow(); // Refresh data
+    } else {
+      showToast(data.error || 'Failed to acknowledge alerts', 'error', 3000);
+    }
+  } catch(e) {
+    showToast('Error acknowledging alerts', 'error', 3000);
+  }
+}
+
+// ── Force Test Alert ───────────────────────────────────────────
+async function forceTestAlert() {
+  try {
+    const res = await fetch(`${SELF}?action=force_test_alert`, {method:'POST'});
+    const data = await res.json();
+    if(data.ok) {
+      showToast('Test alert created! Refreshing...', 'warning', 3000);
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      showToast(data.error || 'Failed to create test alert', 'error', 3000);
+    }
+  } catch(e) {
+    showToast('Error creating test alert', 'error', 3000);
+  }
+}
+
+// ── Scroll to Alerts Panel and Highlight Specific Alert ─────────
+function scrollToAlertsPanel(alertId = null) {
+    console.log('scrollToAlertsPanel called with alertId:', alertId);
+    
+    const alertsPanel = document.getElementById('alertsPanel') || 
+                        document.querySelector('.grid-bottom');
+    
+    // If no alertId provided, get the first alert from the DOM
+    if (!alertId) {
+        const firstAlert = document.querySelector('.alert-item');
+        if (firstAlert && firstAlert.id) {
+            alertId = firstAlert.id.replace('alert-', '');
+            console.log('Using first alert ID from DOM:', alertId);
+        }
+    }
+    
+    // If alertId is provided, highlight ONLY that specific alert item
+    if (alertId) {
+        const alertElement = document.getElementById(`alert-${alertId}`);
+        console.log('Found alert element:', alertElement);
+        
+        if (alertElement) {
+            // Scroll to the alert panel first
+            if (alertsPanel) {
+                alertsPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            // Remove highlight from any other alert
+            document.querySelectorAll('.alert-item.highlighted').forEach(el => {
+                console.log('Removing highlight from:', el);
+                el.classList.remove('highlighted');
+            });
+            // Add highlight to this specific alert only
+            console.log('Adding highlight to:', alertElement);
+            alertElement.classList.add('highlighted');
+            // Scroll the specific alert into view after a short delay
+            setTimeout(() => {
+                alertElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        } else {
+            console.warn('Alert element not found for ID:', `alert-${alertId}`);
+            // Fallback: just scroll to panel
+            if (alertsPanel) {
+                alertsPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    } else {
+        // No alertId and no alerts in DOM - just scroll to panel
+        if (alertsPanel) {
+            alertsPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+}
+
 // ── Boot ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
   const sel=document.getElementById('deviceSelector');
@@ -1935,6 +2185,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   // initMetricCharts();
   initConditionPieChart();
   updateOverallSensorStatus(); // Initialize sensor status boxes
+  // Initialize alert count to prevent false positive toast on first sync
+  _lastAlertCount = <?= $alertCount ?>;
   startSync(10000);
   restoreMonitorIfRunning();
   
@@ -2148,7 +2400,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     showToast(
                         `${icon} ${alert.device_name}: ${alert.message}`,
                         severity,
-                        8000
+                        8000,
+                        () => scrollToAlertsPanel(alert.alert_id)  // Click handler with alert ID
                     );
                 });
             })
