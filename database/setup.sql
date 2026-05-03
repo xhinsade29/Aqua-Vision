@@ -2,8 +2,8 @@
 -- Run this in your MySQL/phpMyAdmin SQL editor
 
 -- Create database
-CREATE DATABASE IF NOT EXISTS mangina_watershed;
-USE mangina_watershed;
+CREATE DATABASE IF NOT EXISTS mangima_watershed;
+USE mangima_watershed;
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
@@ -248,10 +248,6 @@ INSERT IGNORE INTO users (username, email, password_hash, full_name, role) VALUE
 -- Insert sample operator user (password: operator123)
 INSERT IGNORE INTO users (username, email, password_hash, full_name, role) VALUES
 ('operator', 'operator@aqua-vision.com', 'operator123', 'Field Operator', 'operator');
-
--- Insert sample viewer user (password: viewer123)
-INSERT IGNORE INTO users (username, email, password_hash, full_name, role) VALUES
-('viewer', 'viewer@aqua-vision.com', 'viewer123', 'Data Viewer', 'viewer');
 
 -- Insert sample researcher user (password: researcher123)
 INSERT IGNORE INTO users (username, email, password_hash, full_name, role) VALUES
