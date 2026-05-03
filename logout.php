@@ -23,9 +23,6 @@ if (isset($_SESSION['user_id'])) {
     $conn->close();
 }
 
-// Store logout message in session for display after redirect
-$_SESSION['logout_message'] = 'You have been logged out successfully';
-
 // Clear all session data
 $_SESSION = array();
 
@@ -37,7 +34,7 @@ if (isset($_COOKIE[session_name()])) {
 // Destroy the session
 session_destroy();
 
-// Redirect to login page
-header('Location: login.php');
+// Redirect to public view dashboard
+header('Location: index.php');
 exit();
 ?>

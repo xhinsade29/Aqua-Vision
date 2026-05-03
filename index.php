@@ -100,6 +100,96 @@ $riverStatus = $warnCount === 0 ? 'Normal' : ($warnCount <= 2 ? 'Moderate' : 'Cr
 $totalLocations = count($locations);
 $totalDevices = count($devices);
 $totalAlerts = count($activeAlerts);
+
+// Calculate water quality summary
+$qualitySummary = [
+    'overall_status' => 'Good',
+    'ph_status' => 'Normal',
+    'temp_status' => 'Normal',
+    'turbidity_status' => 'Normal',
+    'do_status' => 'Normal',
+    'water_level_status' => 'Normal',
+    'ph_avg' => 0,
+    'temp_avg' => 0,
+    'turbidity_avg' => 0,
+    'do_avg' => 0,
+    'water_level_avg' => 0,
+    'interpretation' => ''
+];
+
+// Calculate averages from readings
+$phValues = [];
+$tempValues = [];
+$turbidityValues = [];
+$doValues = [];
+$waterLevelValues = [];
+
+foreach ($deviceReadings as $device) {
+    foreach ($device['readings'] as $sensor => $reading) {
+        switch ($sensor) {
+            case 'ph_level':
+                $phValues[] = $reading['value'];
+                break;
+            case 'temperature':
+                $tempValues[] = $reading['value'];
+                break;
+            case 'turbidity':
+                $turbidityValues[] = $reading['value'];
+                break;
+            case 'dissolved_oxygen':
+                $doValues[] = $reading['value'];
+                break;
+            case 'water_level':
+                $waterLevelValues[] = $reading['value'];
+                break;
+        }
+    }
+}
+
+if (!empty($phValues)) {
+    $qualitySummary['ph_avg'] = round(array_sum($phValues) / count($phValues), 2);
+    $qualitySummary['ph_status'] = $qualitySummary['ph_avg'] < 6.5 ? 'Acidic' : ($qualitySummary['ph_avg'] > 8.5 ? 'Alkaline' : 'Normal');
+}
+
+if (!empty($tempValues)) {
+    $qualitySummary['temp_avg'] = round(array_sum($tempValues) / count($tempValues), 1);
+    $qualitySummary['temp_status'] = $qualitySummary['temp_avg'] > 30 ? 'High' : ($qualitySummary['temp_avg'] < 20 ? 'Low' : 'Normal');
+}
+
+if (!empty($turbidityValues)) {
+    $qualitySummary['turbidity_avg'] = round(array_sum($turbidityValues) / count($turbidityValues), 1);
+    $qualitySummary['turbidity_status'] = $qualitySummary['turbidity_avg'] > 5 ? 'High' : 'Normal';
+}
+
+if (!empty($doValues)) {
+    $qualitySummary['do_avg'] = round(array_sum($doValues) / count($doValues), 2);
+    $qualitySummary['do_status'] = $qualitySummary['do_avg'] < 5 ? 'Low' : 'Normal';
+}
+
+if (!empty($waterLevelValues)) {
+    $qualitySummary['water_level_avg'] = round(array_sum($waterLevelValues) / count($waterLevelValues), 2);
+    $qualitySummary['water_level_status'] = $qualitySummary['water_level_avg'] < 2 ? 'Low' : 'Normal';
+}
+
+// Determine overall status
+$issueCount = 0;
+if ($qualitySummary['ph_status'] !== 'Normal') $issueCount++;
+if ($qualitySummary['temp_status'] !== 'Normal') $issueCount++;
+if ($qualitySummary['turbidity_status'] !== 'Normal') $issueCount++;
+if ($qualitySummary['do_status'] !== 'Normal') $issueCount++;
+if ($qualitySummary['water_level_status'] !== 'Normal') $issueCount++;
+
+if ($issueCount === 0) {
+    $qualitySummary['overall_status'] = 'Good';
+    $qualitySummary['interpretation'] = 'Water quality is within acceptable ranges. All parameters are normal and safe for aquatic life and human use.';
+} elseif ($issueCount <= 2) {
+    $qualitySummary['overall_status'] = 'Fair';
+    $qualitySummary['interpretation'] = 'Water quality shows minor deviations from normal ranges. Monitoring is recommended but conditions remain acceptable.';
+} else {
+    $qualitySummary['overall_status'] = 'Poor';
+    $qualitySummary['interpretation'] = 'Water quality shows significant deviations from normal ranges. Immediate attention and investigation are recommended.';
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -122,7 +212,7 @@ $totalAlerts = count($activeAlerts);
             --radius: 14px; --radius-sm: 8px;
         }
         body { font-family: 'DM Sans', sans-serif; background: var(--bg); min-height: 100vh; }
-        .header { background: var(--c1); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+        .header { background: var(--c1); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
         .header-logo { display: flex; align-items: center; gap: 12px; color: white; text-decoration: none; }
         .header-logo h1 { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; }
         .header-logo span { font-size: 13px; opacity: 0.8; background: var(--c2); padding: 4px 10px; border-radius: 20px; }
@@ -208,6 +298,52 @@ $totalAlerts = count($activeAlerts);
                 <div class="bstat"><div class="bstat-v" style="color: <?= $totalAlerts > 0 ? 'var(--crit)' : 'var(--good)' ?>"><?= $totalAlerts ?></div><div class="bstat-l">Alerts</div></div>
             </div>
         </div>
+        <!-- Water Quality Summary Report -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header" style="background: linear-gradient(135deg, <?= $qualitySummary['overall_status'] === 'Good' ? '#dcfce7' : ($qualitySummary['overall_status'] === 'Fair' ? '#fef3c7' : '#fee2e2') ?>, white);">
+                <span class="card-title" style="color: <?= $qualitySummary['overall_status'] === 'Good' ? '#16a34a' : ($qualitySummary['overall_status'] === 'Fair' ? '#d97706' : '#dc2626') ?>;">
+                    💧 Water Quality Summary — <?= $qualitySummary['overall_status'] ?>
+                </span>
+                <span class="badge" style="background: <?= $qualitySummary['overall_status'] === 'Good' ? '#dcfce7' : ($qualitySummary['overall_status'] === 'Fair' ? '#fef3c7' : '#fee2e2') ?>; color: <?= $qualitySummary['overall_status'] === 'Good' ? '#16a34a' : ($qualitySummary['overall_status'] === 'Fair' ? '#d97706' : '#dc2626') ?>;">
+                    <?= $qualitySummary['overall_status'] === 'Good' ? '✅ Good' : ($qualitySummary['overall_status'] === 'Fair' ? '⚠️ Fair' : '🚨 Poor') ?>
+                </span>
+            </div>
+            <div style="padding: 20px;">
+                <div style="margin-bottom: 16px; padding: 12px 16px; background: #f8f9fa; border-radius: var(--radius-sm); border-left: 4px solid <?= $qualitySummary['overall_status'] === 'Good' ? '#16a34a' : ($qualitySummary['overall_status'] === 'Fair' ? '#d97706' : '#dc2626') ?>;">
+                    <div style="font-size: 13px; color: var(--text2); line-height: 1.6;">
+                        <?= htmlspecialchars($qualitySummary['interpretation']) ?>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                    <div style="padding: 12px; background: white; border: 1px solid var(--border); border-radius: var(--radius-sm);">
+                        <div style="font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;">pH Level</div>
+                        <div style="font-size: 20px; font-weight: 700; color: <?= $qualitySummary['ph_status'] === 'Normal' ? '#16a34a' : '#d97706' ?>;"><?= $qualitySummary['ph_avg'] ?></div>
+                        <div style="font-size: 11px; color: <?= $qualitySummary['ph_status'] === 'Normal' ? '#16a34a' : '#d97706' ?>;"><?= $qualitySummary['ph_status'] ?></div>
+                    </div>
+                    <div style="padding: 12px; background: white; border: 1px solid var(--border); border-radius: var(--radius-sm);">
+                        <div style="font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;">Temperature</div>
+                        <div style="font-size: 20px; font-weight: 700; color: <?= $qualitySummary['temp_status'] === 'Normal' ? '#16a34a' : '#d97706' ?>;"><?= $qualitySummary['temp_avg'] ?>°C</div>
+                        <div style="font-size: 11px; color: <?= $qualitySummary['temp_status'] === 'Normal' ? '#16a34a' : '#d97706' ?>;"><?= $qualitySummary['temp_status'] ?></div>
+                    </div>
+                    <div style="padding: 12px; background: white; border: 1px solid var(--border); border-radius: var(--radius-sm);">
+                        <div style="font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;">Turbidity</div>
+                        <div style="font-size: 20px; font-weight: 700; color: <?= $qualitySummary['turbidity_status'] === 'Normal' ? '#16a34a' : '#d97706' ?>;"><?= $qualitySummary['turbidity_avg'] ?> NTU</div>
+                        <div style="font-size: 11px; color: <?= $qualitySummary['turbidity_status'] === 'Normal' ? '#16a34a' : '#d97706' ?>;"><?= $qualitySummary['turbidity_status'] ?></div>
+                    </div>
+                    <div style="padding: 12px; background: white; border: 1px solid var(--border); border-radius: var(--radius-sm);">
+                        <div style="font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;">Dissolved O₂</div>
+                        <div style="font-size: 20px; font-weight: 700; color: <?= $qualitySummary['do_status'] === 'Normal' ? '#16a34a' : '#d97706' ?>;"><?= $qualitySummary['do_avg'] ?> mg/L</div>
+                        <div style="font-size: 11px; color: <?= $qualitySummary['do_status'] === 'Normal' ? '#16a34a' : '#d97706' ?>;"><?= $qualitySummary['do_status'] ?></div>
+                    </div>
+                    <div style="padding: 12px; background: white; border: 1px solid var(--border); border-radius: var(--radius-sm);">
+                        <div style="font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;">Water Level</div>
+                        <div style="font-size: 20px; font-weight: 700; color: <?= $qualitySummary['water_level_status'] === 'Normal' ? '#16a34a' : '#d97706' ?>;"><?= $qualitySummary['water_level_avg'] ?> m</div>
+                        <div style="font-size: 11px; color: <?= $qualitySummary['water_level_status'] === 'Normal' ? '#16a34a' : '#d97706' ?>;"><?= $qualitySummary['water_level_status'] ?></div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <!-- River Flow Illustration -->
         <div style="display: flex; align-items: center; justify-content: center; gap: 0; margin-bottom: 20px; padding: 16px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);">
             <div style="display: flex; align-items: center; flex: 1;">
@@ -274,19 +410,6 @@ $totalAlerts = count($activeAlerts);
                             <?php endif; ?>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-        <!-- Device Panel -->
-        <div class="card" style="display:flex;flex-direction:column;">
-            <div class="card-header">
-                <div class="card-title">Device Sensor Data</div>
-                <span class="badge" style="background: var(--good-bg); color: var(--good);">📡 <?= $totalDevices ?></span>
-            </div>
-            <div id="deviceDataDisplay" class="dev-panel">
-                <div class="dev-panel-empty">
-                    <div class="empty-icon">📡</div>
-                    <p>Select a device to view real-time sensor readings</p>
                 </div>
             </div>
         </div>
