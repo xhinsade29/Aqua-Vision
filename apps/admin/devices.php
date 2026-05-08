@@ -531,9 +531,6 @@ include __DIR__ . '/../../assets/navigation.php';
         <!-- Header -->
         <div class="header">
             <h1>📡 Device Management</h1>
-            <div class="header-actions" style="display: flex; gap: 0.5rem;">
-                <a href="?action=add" class="btn btn-primary">+ Add Device</a>
-            </div>
         </div>
         
         <?php if ($action === 'add'): ?>
@@ -609,6 +606,7 @@ include __DIR__ . '/../../assets/navigation.php';
                             </div>
                             
                             <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+                                <button type="submit" class="btn btn-primary">Save Device</button>
                                 <a href="?action=list" class="btn btn-secondary">Cancel</a>
                             </div>
                         </form>

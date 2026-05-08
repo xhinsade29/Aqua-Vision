@@ -530,21 +530,6 @@ $logoSrc = '/Aqua-Vision/assets/logo.png';
         <div class="av-nav-sublabel">Long-term patterns</div>
       </div>
     </a>
-
-    <a href="/Aqua-Vision/apps/researcher/export.php"
-       class="av-nav-item <?= $currentPage === 'export' ? 'active' : '' ?>"
-       aria-current="<?= $currentPage === 'export' ? 'page' : 'false' ?>">
-      <div class="av-nav-icon" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="none">
-          <path d="M8 2v8M4 6l4-4 4 4" stroke="#4988C4" stroke-width="1.5" stroke-linecap="round"/>
-          <path d="M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3" stroke="#4988C4" stroke-width="1.5"/>
-        </svg>
-      </div>
-      <div class="av-nav-label-wrap">
-        <div class="av-nav-label">Export Data</div>
-        <div class="av-nav-sublabel">Download for analysis</div>
-      </div>
-    </a>
   </div>
 
   <div class="av-user-footer">

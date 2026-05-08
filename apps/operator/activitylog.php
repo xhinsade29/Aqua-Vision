@@ -35,53 +35,55 @@ if (!in_array($_SESSION['user_role'] ?? '', $allowedRoles)) {
 }
 
 // ── Helper Functions ─────────────────────────────────────────────────────
-function getMyResolvedAlerts($conn, $userId, $hours = 24) {
-    $sql = "SELECT a.alert_id, a.alert_type, a.message, a.created_at, a.resolved_at,
-                   d.device_name, s.sensor_type, sr.value
-            FROM alerts a
-            JOIN sensors s ON s.sensor_id = a.sensor_id
-            JOIN devices d ON d.device_id = s.device_id
-            LEFT JOIN sensor_readings sr ON sr.reading_id = a.reading_id
-            WHERE a.resolved_by = ? AND a.resolved_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
-            ORDER BY a.resolved_at DESC";
+function getOperatorActivityLogs($conn, $userId, $hours = 24) {
+    $sql = "SELECT sl.log_id, sl.action, sl.details, sl.ip_address, sl.created_at,
+                   u.username, u.full_name
+            FROM system_logs sl
+            JOIN users u ON u.user_id = sl.user_id
+            WHERE sl.user_id = ? 
+              AND sl.created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            ORDER BY sl.created_at DESC
+            LIMIT 200";
+    
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("ii", $userId, $hours);
     $stmt->execute();
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
-function getMyMaintenanceLogs($conn, $userId, $hours = 24) {
-    try {
-        $sql = "SELECT ml.maintenance_id, ml.maintenance_type, ml.notes, ml.damage_level, 
-                       ml.malfunction_type, ml.performed_at,
-                       d.device_name, d.device_id
-                FROM maintenance_logs ml
-                JOIN devices d ON d.device_id = ml.device_id
-                WHERE ml.performed_by = ? AND ml.performed_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
-                ORDER BY ml.performed_at DESC";
-        $stmt = $conn->prepare($sql);
-        if (!$stmt) {
-            return []; // Table doesn't exist
-        }
-        $stmt->bind_param("ii", $userId, $hours);
-        $stmt->execute();
-        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    } catch (Exception $e) {
-        return []; // Return empty if table missing
-    }
-}
-
-function getDeviceStatusChanges($conn, $hours = 24) {
-    $sql = "SELECT d.device_id, d.device_name, d.status, d.updated_at,
-                   l.location_name
-            FROM devices d
-            LEFT JOIN locations l ON l.location_id = d.location_id
-            WHERE d.updated_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
-            ORDER BY d.updated_at DESC";
+function getOperatorStatistics($conn, $userId, $hours = 24) {
+    $stats = [];
+    
+    // Total actions
+    $sql = "SELECT COUNT(*) as cnt FROM system_logs 
+            WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $hours);
+    $stmt->bind_param("ii", $userId, $hours);
     $stmt->execute();
-    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stats['total_actions'] = $stmt->get_result()->fetch_assoc()['cnt'];
+    
+    // Actions by type
+    $sql = "SELECT action, COUNT(*) as cnt FROM system_logs 
+            WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            GROUP BY action";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ii", $userId, $hours);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $stats['actions_by_type'] = [];
+    while ($row = $result->fetch_assoc()) {
+        $stats['actions_by_type'][$row['action']] = $row['cnt'];
+    }
+    
+    // Last activity
+    $sql = "SELECT MAX(created_at) as last FROM system_logs 
+            WHERE user_id = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $stats['last_activity'] = $stmt->get_result()->fetch_assoc()['last'];
+    
+    return $stats;
 }
 
 // ── Page Data ─────────────────────────────────────────────────────────────
@@ -89,9 +91,8 @@ $currentPage = 'activity';
 $hoursFilter = isset($_GET['hours']) ? intval($_GET['hours']) : 24;
 $userId = $_SESSION['user_id'];
 
-$myAlerts = getMyResolvedAlerts($conn, $userId, $hoursFilter);
-$myMaintenance = getMyMaintenanceLogs($conn, $userId, $hoursFilter);
-$statusChanges = getDeviceStatusChanges($conn, $hoursFilter);
+$activityLogs = getOperatorActivityLogs($conn, $userId, $hoursFilter);
+$stats = getOperatorStatistics($conn, $userId, $hoursFilter);
 
 // Get session messages for toast
 $success = $_SESSION['success'] ?? '';
@@ -250,24 +251,34 @@ unset($_SESSION['success'], $_SESSION['error']);
     <div class="main-content">
         <div class="page-header">
             <div>
-                <h1 class="page-title">👤 My Activity Log</h1>
-                <p style="color: var(--text2); font-size: 14px; margin-top: 4px;">Track your actions: alerts resolved, maintenance performed, and status changes</p>
+                <h1 class="page-title">My Activity Log</h1>
+                <p class="page-subtitle">View your operational activities and system interactions</p>
             </div>
         </div>
         
-        <!-- Quick Stats -->
-        <div class="stats-bar">
-            <div class="stat-item">
-                <span class="stat-value" style="color: var(--good);"><?= count($myAlerts) ?></span>
-                <span class="stat-label">Alerts Resolved</span>
+        <!-- Stats -->
+        <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+            <div class="stat-card">
+                <div class="stat-label">Total Actions</div>
+                <div class="stat-value"><?= number_format($stats['total_actions']) ?></div>
+                <div class="stat-sub">Last <?= $hoursFilter ?> hours</div>
             </div>
-            <div class="stat-item">
-                <span class="stat-value" style="color: var(--warn);"><?= count($myMaintenance) ?></span>
-                <span class="stat-label">Maintenance Tasks</span>
+            <div class="stat-card">
+                <div class="stat-label">Alerts Resolved</div>
+                <div class="stat-value"><?= number_format($stats['actions_by_type']['ALERT_ACKNOWLEDGED'] ?? 0) ?></div>
+                <div class="stat-sub">Alerts handled</div>
             </div>
-            <div class="stat-item">
-                <span class="stat-value" style="color: var(--c3);"><?= count($statusChanges) ?></span>
-                <span class="stat-label">Status Changes</span>
+            <div class="stat-card">
+                <div class="stat-label">Maintenance</div>
+                <div class="stat-value"><?= number_format($stats['actions_by_type']['MAINTENANCE_LOGGED'] ?? 0) ?></div>
+                <div class="stat-sub">Maintenance performed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Last Activity</div>
+                <div class="stat-value" style="font-size: 18px; margin-top: 12px;">
+                    <?= $stats['last_activity'] ? date('M d, H:i', strtotime($stats['last_activity'])) : 'Never' ?>
+                </div>
+                <div class="stat-sub"><?= timeAgo($stats['last_activity']) ?></div>
             </div>
         </div>
         
@@ -278,118 +289,38 @@ unset($_SESSION['success'], $_SESSION['error']);
                 <option value="48" <?= $hoursFilter == 48 ? 'selected' : '' ?>>Last 48 Hours</option>
                 <option value="72" <?= $hoursFilter == 72 ? 'selected' : '' ?>>Last 72 Hours</option>
                 <option value="168" <?= $hoursFilter == 168 ? 'selected' : '' ?>>Last 7 Days</option>
+                <option value="720" <?= $hoursFilter == 720 ? 'selected' : '' ?>>Last 30 Days</option>
             </select>
         </div>
         
-        <div class="content-grid">
-            <!-- Resolved Alerts -->
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">✅ Alerts Resolved</span>
-                </div>
-                <div class="card-body">
-                    <?php if (empty($myAlerts)): ?>
-                        <div class="empty-state">
-                            <div class="empty-state-icon">📭</div>
-                            <div class="empty-state-title">No Alerts Resolved</div>
-                            <p style="color: var(--text3); font-size: 13px;">You haven't resolved any alerts in the last <?= $hoursFilter ?> hours</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($myAlerts as $alert): ?>
-                            <div class="activity-item">
-                                <div class="activity-icon alert">✓</div>
-                                <div class="activity-content">
-                                    <div class="activity-title"><?= ucfirst($alert['alert_type']) ?> Alert Resolved</div>
-                                    <div class="activity-desc">
-                                        <?= htmlspecialchars($alert['device_name']) ?> — 
-                                        <?= htmlspecialchars($alert['message']) ?>
-                                    </div>
-                                    <div class="activity-meta">
-                                        <span>📍 <?= ucfirst(str_replace('_', ' ', $alert['sensor_type'])) ?></span>
-                                        <span>🕐 <?= date('M d, H:i', strtotime($alert['resolved_at'])) ?></span>
-                                        <?php if ($alert['value']): ?>
-                                            <span>📊 Value: <?= round($alert['value'], 2) ?></span>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-            
-            <!-- Maintenance Log -->
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-title">🔧 My Maintenance Work</span>
-                </div>
-                <div class="card-body">
-                    <?php if (empty($myMaintenance)): ?>
-                        <div class="empty-state">
-                            <div class="empty-state-icon">🛠️</div>
-                            <div class="empty-state-title">No Maintenance Logged</div>
-                            <p style="color: var(--text3); font-size: 13px;">You haven't logged any maintenance in the last <?= $hoursFilter ?> hours</p>
-                        </div>
-                    <?php else: ?>
-                        <?php foreach ($myMaintenance as $maint): ?>
-                            <div class="activity-item">
-                                <div class="activity-icon maintenance">🔧</div>
-                                <div class="activity-content">
-                                    <div class="activity-title">
-                                        <?= ucfirst(str_replace('_', ' ', $maint['maintenance_type'])) ?>
-                                        <span class="badge <?= $maint['maintenance_type'] ?>"><?= ucfirst($maint['maintenance_type']) ?></span>
-                                        <?php if ($maint['damage_level'] !== 'none'): ?>
-                                            <span class="damage-badge <?= $maint['damage_level'] ?>">Damage: <?= ucfirst($maint['damage_level']) ?></span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="activity-desc">
-                                        <?= htmlspecialchars($maint['device_name']) ?>
-                                        <?php if ($maint['malfunction_type']): ?>
-                                            <br><span style="color: var(--warn);">⚠️ <?= htmlspecialchars($maint['malfunction_type']) ?></span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="activity-meta">
-                                        <span>🕐 <?= date('M d, H:i', strtotime($maint['performed_at'])) ?></span>
-                                    </div>
-                                    <?php if ($maint['notes']): ?>
-                                        <div style="margin-top: 8px; padding: 8px; background: var(--bg); border-radius: var(--radius-sm); font-size: 12px; color: var(--text2);">
-                                            <?= htmlspecialchars($maint['notes']) ?>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Device Status Changes -->
+        <!-- Activity Log -->
         <div class="card" style="margin-top: 20px;">
-            <div class="card-header" style="background: linear-gradient(135deg, var(--c4-soft), white);">
-                <span class="card-title" style="color: var(--c1);">🔄 Device Status Changes</span>
+            <div class="card-header">
+                <span class="card-title">📝 My Activity Log</span>
+                <span style="font-size: 13px; color: var(--text3); margin-left: auto;">
+                    <?= count($activityLogs) ?> entries
+                </span>
             </div>
             <div class="card-body">
-                <?php if (empty($statusChanges)): ?>
+                <?php if (empty($activityLogs)): ?>
                     <div class="empty-state">
-                        <div class="empty-state-icon">📭</div>
-                        <div class="empty-state-title">No Status Changes</div>
-                        <p style="color: var(--text3); font-size: 13px;">No device status changes in the last <?= $hoursFilter ?> hours</p>
+                        <div class="empty-state-icon">�</div>
+                        <div class="empty-state-title">No Activity</div>
+                        <p style="color: var(--text3); font-size: 13px;">No activity recorded in the selected time range</p>
                     </div>
                 <?php else: ?>
-                    <?php foreach ($statusChanges as $change): ?>
+                    <?php foreach ($activityLogs as $log): ?>
                         <div class="activity-item">
-                            <div class="activity-icon status">🔄</div>
+                            <div class="activity-icon alert">�</div>
                             <div class="activity-content">
-                                <div class="activity-title"><?= htmlspecialchars($change['device_name']) ?></div>
-                                <div class="activity-desc">
-                                    Status changed to <strong><?= ucfirst($change['status']) ?></strong>
-                                    <?php if ($change['location_name']): ?>
-                                        at <?= htmlspecialchars($change['location_name']) ?>
-                                    <?php endif; ?>
-                                </div>
+                                <div class="activity-title"><?= htmlspecialchars($log['action']) ?></div>
+                                <div class="activity-desc"><?= htmlspecialchars($log['details']) ?></div>
                                 <div class="activity-meta">
-                                    <span>🕐 <?= date('M d, H:i', strtotime($change['updated_at'])) ?></span>
+                                    <span>� <?= htmlspecialchars($log['username']) ?></span>
+                                    <span>🕐 <?= date('M d, H:i:s', strtotime($log['created_at'])) ?></span>
+                                    <?php if ($log['ip_address']): ?>
+                                        <span>🌐 <?= htmlspecialchars($log['ip_address']) ?></span>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>

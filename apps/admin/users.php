@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get data for current view
-$user = ($action === 'edit' && $id) ? getUserById($conn, $id) : null;
+$user = (($action === 'edit' || $action === 'delete') && $id) ? getUserById($conn, $id) : null;
 $users = getAllUsers($conn);
 $researchers = getUsersByRole($conn, 'researcher');
 
@@ -380,6 +380,8 @@ $researcherCount = count(array_filter($users, fn($u) => $u['role'] === 'research
         .btn-danger { background: var(--crit-bg); color: var(--crit); }
         .btn-danger:hover { background: var(--crit); color: white; }
         .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--border); }
         
         .icon-btn {
             width: 32px; height: 32px; border-radius: 6px;
@@ -469,6 +471,64 @@ $researcherCount = count(array_filter($users, fn($u) => $u['role'] === 'research
             .card { padding: 12px; }
             .main-content { padding: 12px 16px; }
             .form-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: var(--surface);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            width: 90%;
+            max-width: 420px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(15, 40, 84, 0.2);
+        }
+
+        .modal-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--c1);
+        }
+
+        .modal-body {
+            padding: 1.25rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .modal-actions form {
+            display: flex;
+            gap: 0.5rem;
         }
     </style>
 </head>
@@ -568,11 +628,7 @@ $researcherCount = count(array_filter($users, fn($u) => $u['role'] === 'research
                                     <td>
                                         <div class="actions">
                                             <a href="?action=edit&id=<?= $u['user_id'] ?>" class="icon-btn edit" title="Edit">✏️</a>
-                                            <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this user?');">
-                                                <input type="hidden" name="form_action" value="delete">
-                                                <input type="hidden" name="user_id" value="<?= $u['user_id'] ?>">
-                                                <button type="submit" class="icon-btn delete" title="Delete">🗑️</button>
-                                            </form>
+                                            <a href="?action=delete&id=<?= $u['user_id'] ?>" class="icon-btn delete" title="Delete">🗑️</a>
                                         </div>
                                     </td>
                                 </tr>
@@ -580,6 +636,30 @@ $researcherCount = count(array_filter($users, fn($u) => $u['role'] === 'research
                         </tbody>
                     </table>
                 <?php endif; ?>
+            </div>
+            
+        <?php elseif ($action === 'delete'): ?>
+            <!-- Delete Confirmation Modal -->
+            <div class="modal" onclick="if(event.target === this) window.location.href='?action=list'">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Confirm Delete</h3>
+                        <a href="?action=list" style="text-decoration: none; font-size: 1.5rem;">&times;</a>
+                    </div>
+                    <div class="modal-body">
+                        <p>Are you sure you want to delete this user?</p>
+                        <p><strong><?= $user ? htmlspecialchars($user['full_name']) : '' ?></strong></p>
+                        <p style="color: var(--crit); font-size: 0.875rem;">This action cannot be undone.</p>
+                    </div>
+                    <div class="modal-actions">
+                        <form method="POST" action="">
+                            <input type="hidden" name="form_action" value="delete">
+                            <input type="hidden" name="user_id" value="<?= $id ?>">
+                            <button type="submit" class="btn btn-danger">Delete</button>
+                            <a href="?action=list" class="btn btn-secondary">Cancel</a>
+                        </form>
+                    </div>
+                </div>
             </div>
             
         <?php elseif ($action === 'add' || $action === 'edit'): ?>

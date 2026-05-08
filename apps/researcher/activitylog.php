@@ -32,137 +32,53 @@ if (!in_array($_SESSION['user_role'] ?? '', $allowedRoles)) {
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
 
-function getActivityTimeline($conn, $hours = 24, $deviceId = null, $sensorType = null) {
-    $timeline = [];
-    
-    // Get sensor readings
-    $sql = "SELECT sr.reading_id, sr.value, sr.recorded_at, 
-                   s.sensor_type, s.unit, s.min_threshold, s.max_threshold,
-                   d.device_id, d.device_name, l.location_name, l.river_section
-            FROM sensor_readings sr
-            JOIN sensors s ON s.sensor_id = sr.sensor_id
-            JOIN devices d ON d.device_id = s.device_id
-            LEFT JOIN locations l ON l.location_id = d.location_id
-            WHERE sr.recorded_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)";
-    
-    $params = [$hours];
-    $types = "i";
-    
-    if ($deviceId) {
-        $sql .= " AND d.device_id = ?";
-        $params[] = $deviceId;
-        $types .= "i";
-    }
-    
-    if ($sensorType) {
-        $sql .= " AND s.sensor_type = ?";
-        $params[] = $sensorType;
-        $types .= "s";
-    }
-    
-    $sql .= " ORDER BY sr.recorded_at DESC LIMIT 500";
+function getResearcherActivityLogs($conn, $userId, $hours = 24) {
+    $sql = "SELECT sl.log_id, sl.action, sl.details, sl.ip_address, sl.created_at,
+                   u.username, u.full_name
+            FROM system_logs sl
+            JOIN users u ON u.user_id = sl.user_id
+            WHERE sl.user_id = ? 
+              AND sl.created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            ORDER BY sl.created_at DESC
+            LIMIT 200";
     
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param($types, ...$params);
+    $stmt->bind_param("ii", $userId, $hours);
     $stmt->execute();
-    $readings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    
-    foreach ($readings as $r) {
-        $status = 'normal';
-        if ($r['value'] < $r['min_threshold'] || $r['value'] > $r['max_threshold']) {
-            $status = 'out_of_range';
-        }
-        
-        $timeline[] = [
-            'type' => 'reading',
-            'timestamp' => $r['recorded_at'],
-            'device_name' => $r['device_name'],
-            'location_name' => $r['location_name'],
-            'river_section' => $r['river_section'],
-            'sensor_type' => $r['sensor_type'],
-            'value' => $r['value'],
-            'unit' => $r['unit'],
-            'status' => $status,
-            'min_threshold' => $r['min_threshold'],
-            'max_threshold' => $r['max_threshold']
-        ];
-    }
-    
-    // Get alerts
-    $alertSql = "SELECT a.alert_id, a.alert_type, a.message, a.status, a.created_at,
-                        d.device_name, s.sensor_type, l.river_section
-                 FROM alerts a
-                 JOIN sensors s ON s.sensor_id = a.sensor_id
-                 JOIN devices d ON d.device_id = s.device_id
-                 LEFT JOIN locations l ON l.location_id = d.location_id
-                 WHERE a.created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)";
-    
-    $alertParams = [$hours];
-    $alertTypes = "i";
-    
-    if ($deviceId) {
-        $alertSql .= " AND d.device_id = ?";
-        $alertParams[] = $deviceId;
-        $alertTypes .= "i";
-    }
-    
-    if ($sensorType) {
-        $alertSql .= " AND s.sensor_type = ?";
-        $alertParams[] = $sensorType;
-        $alertTypes .= "s";
-    }
-    
-    $alertSql .= " ORDER BY a.created_at DESC LIMIT 100";
-    
-    $stmt = $conn->prepare($alertSql);
-    $stmt->bind_param($alertTypes, ...$alertParams);
-    $stmt->execute();
-    $alerts = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-    
-    foreach ($alerts as $a) {
-        $timeline[] = [
-            'type' => 'alert',
-            'timestamp' => $a['created_at'],
-            'device_name' => $a['device_name'],
-            'location_name' => $a['river_section'] ? ucfirst($a['river_section']) : 'Unknown',
-            'river_section' => $a['river_section'],
-            'sensor_type' => $a['sensor_type'],
-            'alert_type' => $a['alert_type'],
-            'message' => $a['message'],
-            'status' => $a['status']
-        ];
-    }
-    
-    // Sort by timestamp descending
-    usort($timeline, function($a, $b) {
-        return strtotime($b['timestamp']) - strtotime($a['timestamp']);
-    });
-    
-    return array_slice($timeline, 0, 200);
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
-function getStatistics($conn, $hours = 24) {
+function getResearcherStatistics($conn, $userId, $hours = 24) {
     $stats = [];
     
-    // Total readings
-    $result = $conn->query("SELECT COUNT(*) as cnt FROM sensor_readings WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL $hours HOUR)");
-    $stats['total_readings'] = $result->fetch_assoc()['cnt'];
+    // Total actions
+    $sql = "SELECT COUNT(*) as cnt FROM system_logs 
+            WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ii", $userId, $hours);
+    $stmt->execute();
+    $stats['total_actions'] = $stmt->get_result()->fetch_assoc()['cnt'];
     
-    // Active sensors
-    $result = $conn->query("SELECT COUNT(DISTINCT sensor_id) as cnt FROM sensor_readings WHERE recorded_at >= DATE_SUB(NOW(), INTERVAL $hours HOUR)");
-    $stats['active_sensors'] = $result->fetch_assoc()['cnt'];
+    // Actions by type
+    $sql = "SELECT action, COUNT(*) as cnt FROM system_logs 
+            WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            GROUP BY action";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ii", $userId, $hours);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $stats['actions_by_type'] = [];
+    while ($row = $result->fetch_assoc()) {
+        $stats['actions_by_type'][$row['action']] = $row['cnt'];
+    }
     
-    // Alerts
-    $result = $conn->query("SELECT 
-        SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) as active_alerts,
-        SUM(CASE WHEN alert_type='critical' THEN 1 ELSE 0 END) as critical_alerts,
-        SUM(CASE WHEN alert_type='high' THEN 1 ELSE 0 END) as high_alerts
-    FROM alerts WHERE created_at >= DATE_SUB(NOW(), INTERVAL $hours HOUR)");
-    $stats['alerts'] = $result->fetch_assoc();
-    
-    // Last reading
-    $result = $conn->query("SELECT MAX(recorded_at) as last FROM sensor_readings");
-    $stats['last_reading'] = $result->fetch_assoc()['last'];
+    // Last activity
+    $sql = "SELECT MAX(created_at) as last FROM system_logs 
+            WHERE user_id = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $stats['last_activity'] = $stmt->get_result()->fetch_assoc()['last'];
     
     return $stats;
 }
@@ -174,15 +90,14 @@ if (($_GET['action'] ?? '') === 'fetch') {
     header('Content-Type: application/json'); header('Cache-Control: no-store');
     
     $hours = intval($_GET['hours'] ?? 24);
-    $deviceId = intval($_GET['device_id'] ?? 0) ?: null;
-    $sensorType = $_GET['sensor_type'] ?? null;
+    $userId = $_SESSION['user_id'];
     
-    $timeline = getActivityTimeline($conn, $hours, $deviceId, $sensorType);
-    $stats = getStatistics($conn, $hours);
+    $activityLogs = getResearcherActivityLogs($conn, $userId, $hours);
+    $stats = getResearcherStatistics($conn, $userId, $hours);
     
     echo json_encode([
         'ok' => true,
-        'timeline' => $timeline,
+        'activity_logs' => $activityLogs,
         'stats' => $stats,
         'timestamp' => date('Y-m-d H:i:s')
     ], JSON_NUMERIC_CHECK);
@@ -192,23 +107,11 @@ if (($_GET['action'] ?? '') === 'fetch') {
 // ── Page Data ─────────────────────────────────────────────────────────────────
 $currentPage = 'history';
 $hoursFilter = isset($_GET['hours']) ? intval($_GET['hours']) : 24;
-$deviceFilter = isset($_GET['device_id']) ? intval($_GET['device_id']) : null;
-$sensorFilter = $_GET['sensor_type'] ?? null;
-
-// Get filter options
-$devices = $conn->query("SELECT device_id, device_name, status FROM devices ORDER BY device_name")->fetch_all(MYSQLI_ASSOC);
-$sensorTypesResult = $conn->query("SELECT DISTINCT sensor_type FROM sensors WHERE sensor_type NOT IN ('humidity', 'pressure', 'flow_rate') ORDER BY sensor_type");
-$sensorTypes = [];
-while ($row = $sensorTypesResult->fetch_assoc()) {
-    $sensorTypes[] = $row['sensor_type'];
-}
-if (empty($sensorTypes)) {
-    $sensorTypes = ['temperature', 'ph_level', 'turbidity', 'dissolved_oxygen', 'water_level', 'sediments'];
-}
+$userId = $_SESSION['user_id'];
 
 // Get data
-$timeline = getActivityTimeline($conn, $hoursFilter, $deviceFilter, $sensorFilter);
-$stats = getStatistics($conn, $hoursFilter);
+$activityLogs = getResearcherActivityLogs($conn, $userId, $hoursFilter);
+$stats = getResearcherStatistics($conn, $userId, $hoursFilter);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -386,39 +289,34 @@ $stats = getStatistics($conn, $hoursFilter);
         <!-- Header -->
         <div class="page-header">
             <div>
-                <h1 class="page-title">Research Activity Log</h1>
-                <p class="page-subtitle">Track sensor readings and water quality data for research analysis</p>
+                <h1 class="page-title">My Activity Log</h1>
+                <p class="page-subtitle">View your research activities and system interactions</p>
             </div>
-            <a href="?action=export&format=csv&hours=<?= $hoursFilter ?>" class="btn btn-primary">
-                📥 Export Data
-            </a>
         </div>
         
         <!-- Stats -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-label">Total Readings</div>
-                <div class="stat-value"><?= number_format($stats['total_readings']) ?></div>
+                <div class="stat-label">Total Actions</div>
+                <div class="stat-value"><?= number_format($stats['total_actions']) ?></div>
                 <div class="stat-sub">Last <?= $hoursFilter ?> hours</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Active Sensors</div>
-                <div class="stat-value"><?= number_format($stats['active_sensors']) ?></div>
-                <div class="stat-sub">Reporting data</div>
+                <div class="stat-label">Logins</div>
+                <div class="stat-value"><?= number_format($stats['actions_by_type']['LOGIN'] ?? 0) ?></div>
+                <div class="stat-sub">Session starts</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Active Alerts</div>
-                <div class="stat-value" style="color: <?= $stats['alerts']['active_alerts'] > 0 ? 'var(--crit)' : 'var(--good)' ?>">
-                    <?= number_format($stats['alerts']['active_alerts'] ?? 0) ?>
-                </div>
-                <div class="stat-sub">Critical: <?= $stats['alerts']['critical_alerts'] ?? 0 ?></div>
+                <div class="stat-label">Data Analysis</div>
+                <div class="stat-value"><?= number_format(($stats['actions_by_type']['DATA_ANALYSIS'] ?? 0) + ($stats['actions_by_type']['REPORT_GENERATED'] ?? 0)) ?></div>
+                <div class="stat-sub">Reports & analysis</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Last Reading</div>
+                <div class="stat-label">Last Activity</div>
                 <div class="stat-value" style="font-size: 18px; margin-top: 12px;">
-                    <?= $stats['last_reading'] ? date('M d, H:i', strtotime($stats['last_reading'])) : 'Never' ?>
+                    <?= $stats['last_activity'] ? date('M d, H:i', strtotime($stats['last_activity'])) : 'Never' ?>
                 </div>
-                <div class="stat-sub"><?= timeAgo($stats['last_reading']) ?></div>
+                <div class="stat-sub"><?= timeAgo($stats['last_activity']) ?></div>
             </div>
         </div>
         
@@ -431,28 +329,7 @@ $stats = getStatistics($conn, $hoursFilter);
                     <option value="48" <?= $hoursFilter == 48 ? 'selected' : '' ?>>Last 48 Hours</option>
                     <option value="72" <?= $hoursFilter == 72 ? 'selected' : '' ?>>Last 72 Hours</option>
                     <option value="168" <?= $hoursFilter == 168 ? 'selected' : '' ?>>Last 7 Days</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <span class="filter-label">Device:</span>
-                <select class="filter-select" onchange="updateFilter('device_id', this.value)">
-                    <option value="">All Devices</option>
-                    <?php foreach ($devices as $d): ?>
-                        <option value="<?= $d['device_id'] ?>" <?= $deviceFilter == $d['device_id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($d['device_name']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="filter-group">
-                <span class="filter-label">Sensor:</span>
-                <select class="filter-select" onchange="updateFilter('sensor_type', this.value)">
-                    <option value="">All Sensors</option>
-                    <?php foreach ($sensorTypes as $t): ?>
-                        <option value="<?= $t ?>" <?= $sensorFilter === $t ? 'selected' : '' ?>>
-                            <?= ucfirst(str_replace('_', ' ', $t)) ?>
-                        </option>
-                    <?php endforeach; ?>
+                    <option value="720" <?= $hoursFilter == 720 ? 'selected' : '' ?>>Last 30 Days</option>
                 </select>
             </div>
             <a href="activitylog.php" class="btn btn-outline">Reset</a>
@@ -461,71 +338,36 @@ $stats = getStatistics($conn, $hoursFilter);
         <!-- Timeline -->
         <div class="timeline-card">
             <div class="timeline-header">
-                <span class="card-title">Activity Timeline</span>
+                <span class="card-title">My Activity Log</span>
                 <span style="font-size: 13px; color: var(--text3);">
-                    <?= count($timeline) ?> events
+                    <?= count($activityLogs) ?> entries
                 </span>
             </div>
             <div class="timeline-body">
-                <?php if (empty($timeline)): ?>
+                <?php if (empty($activityLogs)): ?>
                     <div class="empty-state">
                         <div class="empty-state-icon">📭</div>
                         <div class="empty-state-title">No Activity</div>
-                        <p style="color: var(--text2);">No sensor readings or alerts in the selected time range</p>
+                        <p style="color: var(--text2);">No activity recorded in the selected time range</p>
                     </div>
                 <?php else: ?>
-                    <?php foreach ($timeline as $item): ?>
+                    <?php foreach ($activityLogs as $log): ?>
                         <div class="timeline-item">
-                            <?php if ($item['type'] === 'reading'): ?>
-                                <div class="timeline-icon reading">📊</div>
-                                <div class="timeline-content">
-                                    <div class="timeline-title">
-                                        <?= ucfirst(str_replace('_', ' ', $item['sensor_type'])) ?> Reading
-                                        <?php if ($item['status'] === 'out_of_range'): ?>
-                                            <span class="badge badge-warning">⚠ Out of Range</span>
-                                        <?php else: ?>
-                                            <span class="badge badge-normal">✓ Normal</span>
-                                        <?php endif; ?>
-                                        <?php if ($item['river_section']): ?>
-                                            <span class="badge-section badge-<?= $item['river_section'] ?>">
-                                                <?= ucfirst($item['river_section']) ?>
-                                            </span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="timeline-desc">
-                                        <span class="value-display">
-                                            <?= round($item['value'], 2) ?>
-                                            <span class="value-unit"><?= $item['unit'] ?></span>
-                                        </span>
-                                        <span style="color: var(--text3); margin-left: 8px;">
-                                            (Range: <?= $item['min_threshold'] ?> - <?= $item['max_threshold'] ?>)
-                                        </span>
-                                    </div>
-                                    <div class="timeline-meta">
-                                        <span>📍 <?= htmlspecialchars($item['location_name'] ?? 'Unknown') ?></span>
-                                        <span>🔧 <?= htmlspecialchars($item['device_name']) ?></span>
-                                        <span>🕐 <?= date('M d, Y H:i:s', strtotime($item['timestamp'])) ?></span>
-                                    </div>
+                            <div class="timeline-icon reading">�</div>
+                            <div class="timeline-content">
+                                <div class="timeline-title">
+                                    <?= htmlspecialchars($log['action']) ?>
+                                    <span class="badge badge-normal">Logged</span>
                                 </div>
-                            <?php else: ?>
-                                <div class="timeline-icon alert-<?= $item['alert_type'] ?>">⚠️</div>
-                                <div class="timeline-content">
-                                    <div class="timeline-title">
-                                        <?= ucfirst($item['alert_type']) ?> Alert
-                                        <?php if ($item['status'] === 'active'): ?>
-                                            <span class="badge badge-critical">● Active</span>
-                                        <?php else: ?>
-                                            <span class="badge badge-normal">Resolved</span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="timeline-desc"><?= htmlspecialchars($item['message']) ?></div>
-                                    <div class="timeline-meta">
-                                        <span>📍 <?= ucfirst($item['river_section'] ?? 'Unknown') ?></span>
-                                        <span>🔧 <?= htmlspecialchars($item['device_name']) ?></span>
-                                        <span>🕐 <?= date('M d, Y H:i:s', strtotime($item['timestamp'])) ?></span>
-                                    </div>
+                                <div class="timeline-desc"><?= htmlspecialchars($log['details']) ?></div>
+                                <div class="timeline-meta">
+                                    <span>� <?= htmlspecialchars($log['username']) ?></span>
+                                    <span>🕐 <?= date('M d, Y H:i:s', strtotime($log['created_at'])) ?></span>
+                                    <?php if ($log['ip_address']): ?>
+                                        <span>🌐 <?= htmlspecialchars($log['ip_address']) ?></span>
+                                    <?php endif; ?>
                                 </div>
-                            <?php endif; ?>
+                            </div>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
